@@ -1,0 +1,50 @@
+import { useEventStore } from '@/stores/eventStore'
+import type { EventRecord } from '@/types/domain'
+
+/** Mock Data Store reactivo (AGENTS.md): estado centralizado con Zustand. */
+export function useEvents(): { data: EventRecord[]; isLoading: boolean } {
+  const events = useEventStore((s) => s.events)
+  return { data: events, isLoading: false }
+}
+
+export interface EventsSummary {
+  eventsThisMonth: number
+  billingTotalCents: number
+  depositsCollectedCents: number
+  balancesPendingCents: number
+}
+
+const monthOf = (isoDate: string): string => isoDate.slice(0, 7)
+
+export function summarizeEvents(events: EventRecord[]): EventsSummary {
+  const now = new Date()
+  const currentMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`
+
+  const billingTotalCents = events.reduce((sum, e) => sum + e.totalCents, 0)
+
+  // Señas cobradas: depositCents (40%) en eventos señados o saldo pendiente, y 100% en saldados
+  const depositsCollectedCents = events.reduce((sum, e) => {
+    if (e.paymentStatus === 'SEÑA_ABONADA' || e.paymentStatus === 'SALDO_PENDIENTE') {
+      return sum + e.depositCents
+    }
+    if (e.paymentStatus === 'TOTALMENTE_SALDADO') {
+      return sum + e.totalCents
+    }
+    return sum
+  }, 0)
+
+  // Saldos por cobrar: saldo restante (60%) de eventos con SALDO_PENDIENTE
+  const balancesPendingCents = events.reduce((sum, e) => {
+    if (e.paymentStatus === 'SALDO_PENDIENTE') {
+      return sum + (e.totalCents - e.depositCents)
+    }
+    return sum
+  }, 0)
+
+  return {
+    eventsThisMonth: events.filter((e) => monthOf(e.eventDate) === currentMonth).length,
+    billingTotalCents,
+    depositsCollectedCents,
+    balancesPendingCents,
+  }
+}
