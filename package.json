@@ -9,6 +9,8 @@
     "lint": "oxlint",
     "typecheck": "tsc -b --noEmit",
     "smoke": "node scripts/smoke.mjs",
+    "db:reset": "node server/db/reset.mjs",
+    "server": "node server/index.ts",
     "preview": "vite preview"
   },
   "dependencies": {

@@ -6,19 +6,28 @@ Documento de seguimiento de tareas pendientes organizadas por vistas, módulos d
 
 ## 1. Backend, Infraestructura & Seguridad
 
-- [ ] **Base de datos (Neon / PostgreSQL)**
-  - [ ] Configurar conexión con instancia serverless de Neon PostgreSQL.
-  - [ ] Diseñar y ejecutar migraciones iniciales para las tablas: `users`, `roles`, `events`, `stations`, `tariffs`, `dietary_requirements`, `payments` y `audit_logs`.
+- [ ] **Base de Datos & Estrategia Script-Driven**
+  - [x] Configurar base de datos inicial SQLite local (`server/db/smt.sqlite`) sin dependencias externas usando `node:sqlite` nativo.
+  - [x] Diseñar esquema DDL declarativo ([`server/db/schema.sql`](file:///home/guille/Documentos/Repos/tecni/smt-catering/server/db/schema.sql)) para: `roles`, `users`, `stations`, `tariffs`, `events`, `event_stations`, `event_dietary` y `payments`.
+  - [x] Crear datos semilla ([`server/db/seed.sql`](file:///home/guille/Documentos/Repos/tecni/smt-catering/server/db/seed.sql)) con roles, usuarios iniciales, estaciones, tarifas y evento demo.
+  - [x] Implementar script de reinicio instantáneo `npm run db:reset` ([`server/db/reset.mjs`](file:///home/guille/Documentos/Repos/tecni/smt-catering/server/db/reset.mjs)) para sincronizar al equipo sin conflictos de migraciones.
+  - [x] Configurar exclusión en [`.gitignore`](file:///home/guille/Documentos/Repos/tecni/smt-catering/.gitignore) para no subir archivos binarios `.sqlite` a Git.
+  - [ ] Migración futura / conexión con Neon PostgreSQL en producción cuando se configure el entorno cloud.
 - [ ] **Autenticación & Sesiones**
-  - [ ] Implementar autenticación basada en JWT almacenados en Cookies HTTP-only (`SameSite=Strict`, `Secure`).
-  - [ ] Implementar middleware de validación y refresco de tokens para sesiones persistentes seguras.
+  - [x] Definir middleware de autenticación por cookies HTTP-only ([`server/middleware/authGuard.ts`](file:///home/guille/Documentos/Repos/tecni/smt-catering/server/middleware/authGuard.ts)).
+  - [ ] Implementar firma y verificación real de JWT con secret key.
   - [ ] Implementar hashing seguro de contraseñas con `bcrypt` (o `argon2`).
 - [ ] **Sistema de Roles y Permisos (RBAC)**
-  - [ ] Definir los 4 roles del sistema: `superadmin`, `admin`, `cocina` y `cliente`.
-  - [ ] Crear guards en frontend y middlewares en backend para control de acceso estricto por ruta y acción.
+  - [x] Definir los 4 roles del sistema en contratos compartidos ([`shared/types/roles.ts`](file:///home/guille/Documentos/Repos/tecni/smt-catering/shared/types/roles.ts)): `superadmin`, `admin`, `cocina` y `cliente`.
+  - [x] Crear middleware RBAC en backend ([`server/middleware/roleGuard.ts`](file:///home/guille/Documentos/Repos/tecni/smt-catering/server/middleware/roleGuard.ts)) para control de acceso por ruta y acción.
+  - [ ] Integrar guards en frontend (`App.tsx`) para restringir rutas según rol autenticado.
 - [ ] **Panel de Administración para Superadmin (AdminJS)**
-  - [ ] Integrar AdminJS para acceso exclusivo del rol `superadmin`.
-  - [ ] Configurar recursos para alta, baja, modificación y asignación de roles de usuarios.
+  - [x] Crear módulo base de configuración ([`server/modules/adminjs/adminjs.config.ts`](file:///home/guille/Documentos/Repos/tecni/smt-catering/server/modules/adminjs/adminjs.config.ts)).
+  - [ ] Instalar `@adminjs/express` y conectar recursos para alta, baja, modificación y asignación de roles de usuarios.
+- [x] **Arquitectura Modular Descentralizada**
+  - [x] Crear capa de contratos compartidos ([`shared/`](file:///home/guille/Documentos/Repos/tecni/smt-catering/shared/)) con tipos e interfaces TypeScript.
+  - [x] Crear esquemas Zod compartidos ([`shared/schemas/`](file:///home/guille/Documentos/Repos/tecni/smt-catering/shared/schemas/)) para validación unificada (auth y cotizador).
+  - [x] Estructurar módulos verticales independientes en backend: `auth`, `events`, `quotation`, `production`, `tariffs` y `adminjs`.
 
 ---
 
@@ -42,7 +51,8 @@ Documento de seguimiento de tareas pendientes organizadas por vistas, módulos d
   - [ ] Agregar enlace "¿Olvidaste tu contraseña?" en el formulario de login.
   - [ ] Desarrollar vista y endpoint para solicitud de restablecimiento y cambio de contraseña con token temporal.
 - [ ] **Registro de Nuevos Usuarios (`cliente`)**
-  - [ ] Agregar vista y formulario de registro de clientes (nombre, email, teléfono, contraseña).
+  - [x] Definir esquema de validación Zod ([`shared/schemas/auth.schema.ts`](file:///home/guille/Documentos/Repos/tecni/smt-catering/shared/schemas/auth.schema.ts)) y endpoint backend inicial ([`server/modules/auth/`](file:///home/guille/Documentos/Repos/tecni/smt-catering/server/modules/auth/)).
+  - [ ] Agregar vista y formulario de registro en frontend.
   - [ ] Asignar automáticamente el rol `cliente` a nuevos registros.
 - [ ] **Redirección de Superadmin**
   - [ ] Al detectar inicio de sesión exitoso con rol `superadmin`, redirigir automáticamente al panel de AdminJS.
@@ -63,28 +73,31 @@ Documento de seguimiento de tareas pendientes organizadas por vistas, módulos d
 ## 5. Cotizador [Cliente]
 
 - [ ] **Validación de Ubicación**
-  - [ ] Campo para ingresar dirección o geolocalización del evento.
-  - [ ] Validación de distancia: permitir contratación únicamente si la ubicación está a $\le 20\text{ km}$ del punto base establecido.
+  - [x] Definir regla de distancia máxima $\le 20\text{ km}$ en esquema Zod ([`shared/schemas/quotation.schema.ts`](file:///home/guille/Documentos/Repos/tecni/smt-catering/shared/schemas/quotation.schema.ts)).
+  - [ ] Campo en frontend para ingresar dirección o geolocalización del evento.
+  - [ ] Validación de distancia contra el punto base establecido.
 - [ ] **Selector de Islas / Estaciones**
   - [ ] Incorporar imágenes ilustrativas de alta calidad para cada una de las estaciones gastronómicas.
 - [ ] **Adicionales**
   - [ ] Eliminar la opción "Mantelería" de los ítems adicionales disponibles.
 - [ ] **Restricciones Alimentarias**
-  - [ ] Revisar y agregar restricciones faltantes en la matriz.
+  - [x] Tipado de modelo para "Otros" con detalle y cantidad ([`shared/types/events.ts`](file:///home/guille/Documentos/Repos/tecni/smt-catering/shared/types/events.ts)).
+  - [ ] Revisar y agregar restricciones faltantes en la matriz UI.
   - [ ] Permitir agregar restricciones personalizadas ("Otros") indicando descripción y cantidad exacta de comensales.
 - [ ] **Fecha del Evento, Horarios & Disponibilidad**
-  - [ ] Reducir la antelación mínima de reserva a **15 días** (actualmente 30 días).
+  - [x] Definir reglas de validación en esquema Zod y backend ([`server/modules/quotation/`](file:///home/guille/Documentos/Repos/tecni/smt-catering/server/modules/quotation/)).
+  - [ ] Reducir la antelación mínima de reserva a **15 días** (en UI y calendario).
   - [ ] Restringir la selección de fechas exclusivamente a días **viernes, sábados y domingos**.
   - [ ] Franja horaria y duración del servicio:
     - [ ] Duración máxima del evento: **hasta 3 horas**.
     - [ ] El cliente debe seleccionar su horario dentro de la ventana operativa de **19:00 a 00:00 hs** (horario límite de finalización: 00:00 hs).
   - [ ] Regla de eventos concurrentes en una misma fecha:
-    - [ ] Si una fecha posee una reserva confirmada con **$\le 60$ comensales**, la fecha permanece disponible para un segundo evento.
-    - [ ] El segundo evento agendado para esa misma fecha tiene un tope estricto de **máximo 60 comensales** (rango permitido: 50 a 60 comensales).
+    - [x] Lógica de disponibilidad concurrente implementada en backend ([`QuotationService.checkAvailability`](file:///home/guille/Documentos/Repos/tecni/smt-catering/server/modules/quotation/quotation.service.ts)).
+    - [ ] Reflejar en calendario UI: si una fecha posee reserva con $\le 60$ comensales, habilitar para un segundo evento de máx 60 comensales.
 - [ ] **Resumen Financiero & Checkout**
-  - [ ] Incorporar el concepto y monto de **Seguro** en el cálculo y desglose.
-  - [ ] Actualizar el porcentaje de seña al **50%** (antes 40%).
-  - [ ] Permitir al cliente elegir el monto inicial a abonar: desde el mínimo de la seña (50%) hasta el 100% del total.
+  - [x] Incorporar tarifa de **Seguro** en base de datos y cálculo de backend.
+  - [x] Ajustar seña al **50%** en cálculo de cotización.
+  - [ ] Permitir al cliente elegir el monto inicial a abonar en frontend: desde el mínimo de seña (50%) hasta el 100% total.
   - [ ] Renombrar el botón "Confirmar evento" por **"Pagar"**.
   - [ ] Quitar el botón "Compartir resumen".
   - [ ] Implementar modal informativo previo a la redirección a la pasarela de pagos.
@@ -94,7 +107,8 @@ Documento de seguimiento de tareas pendientes organizadas por vistas, módulos d
 ## 6. Mis Eventos [Cliente]
 
 - [ ] **Listado de Eventos Propios**
-  - [ ] Crear la vista `Mis Eventos` exclusiva para clientes.
+  - [x] Crear scaffold de la vista [`src/features/my-events/MyEventsPage.tsx`](file:///home/guille/Documentos/Repos/tecni/smt-catering/src/features/my-events/MyEventsPage.tsx).
+  - [x] Endpoint backend para consultar eventos propios del cliente ([`GET /api/events/my-events`](file:///home/guille/Documentos/Repos/tecni/smt-catering/server/modules/events/events.routes.ts)).
   - [ ] Mostrar tarjetas/grilla con: fecha contratada, comensales, estaciones seleccionadas y estado de cobro.
 - [ ] **Acciones Disponibles por Evento**
   - [ ] **Ver Detalle:** modal o vista con el desglose completo de la cotización y servicios.
@@ -124,17 +138,18 @@ Documento de seguimiento de tareas pendientes organizadas por vistas, módulos d
 - [ ] **Separación de Vistas**
   - [ ] Mover las métricas y gráficos estadísticos a la vista independiente de "Métricas".
 - [ ] **Restricciones de Acceso para Rol Cocina (`cocina`)**
-  - [ ] Ocultar completamente columnas e importes monetarios (totales y saldos pendientes).
-  - [ ] Ocultar estados de pago y botones de edición de eventos o cobros.
-  - [ ] Permitir únicamente visualizar el calendario y buscador; al hacer clic en un evento, navegar directamente al detalle de su comanda.
+  - [x] Sanitización implementada en backend ([`EventsController.list`](file:///home/guille/Documentos/Repos/tecni/smt-catering/server/modules/events/events.controller.ts)): oculta montos y estados de cobro al rol `cocina`.
+  - [ ] Ocultar en UI frontend las columnas de importes, saldos y botones de cobro/edición para el rol cocina.
+  - [ ] Al hacer clic en un evento desde la vista de cocina, navegar directamente al detalle de su comanda.
 
 ---
 
 ## 8. Gestión de Tarifas [Admin]
 
 - [ ] **Ajuste de Catálogo de Tarifas**
-  - [ ] Eliminar de la lista de tarifas los ítems: "Cubiertos" y "Mantelería".
-  - [ ] Dar de alta la tarifa correspondiente a "Seguro".
+  - [x] Cargar en base de datos ([`server/db/seed.sql`](file:///home/guille/Documentos/Repos/tecni/smt-catering/server/db/seed.sql)) la tarifa de "Seguro" y excluir cubiertos y mantelería.
+  - [ ] Eliminar de la UI de tarifas los ítems: "Cubiertos" y "Mantelería".
+  - [ ] Visualizar la tarifa correspondiente a "Seguro".
   - [ ] Evaluar y remover la columna "Tipo" si no se utiliza operativamente.
 - [ ] **Simplificación de UI**
   - [ ] Eliminar el panel o sección de historial de cambios de tarifas.
@@ -144,7 +159,8 @@ Documento de seguimiento de tareas pendientes organizadas por vistas, módulos d
 ## 9. Métricas & Reportes [Admin]
 
 - [ ] **Nueva Vista Independiente de Métricas**
-  - [ ] Crear la ruta `/metricas` accesible únicamente para el rol `admin`.
+  - [x] Crear scaffold de la vista [`src/features/metrics/MetricsPage.tsx`](file:///home/guille/Documentos/Repos/tecni/smt-catering/src/features/metrics/MetricsPage.tsx).
+  - [ ] Configurar la ruta `/metricas` accesible únicamente para el rol `admin`.
   - [ ] Reubicar aquí los gráficos de facturación, conversión y volumen de comensales.
   - [ ] Incorporar nuevos KPIs y reportes una vez recibidas las especificaciones detalladas.
 
@@ -155,12 +171,9 @@ Documento de seguimiento de tareas pendientes organizadas por vistas, módulos d
 *(Alinear con el modelo de referencia en Google Drive)*
 
 - [ ] **Estructura del Ticket / Ficha de Producción**
-  - [ ] Número identificador correlativo de comanda.
-  - [ ] Fecha y hora del servicio.
-  - [ ] Nombre del cliente / empresa.
-  - [ ] Cantidad total de comensales, aclarando explícitamente si se trata de un **"Evento único"** o **"Evento concurrente"** en la jornada.
-  - [ ] Listado de islas/estaciones contratadas (sin información de PAX ni valores monetarios).
-  - [ ] Matriz de restricciones alimentarias: detalle minucioso de cada tipo de menú especial (celíacos, vegetarianos, veganos, alergias y otros) con sus respectivas cantidades.
+  - [x] Modelo de comanda de cocina estructurado en backend ([`ProductionService.getComanda`](file:///home/guille/Documentos/Repos/tecni/smt-catering/server/modules/production/production.service.ts)) sin información de precios ni montos monetarios.
+  - [x] Número identificador correlativo de comanda (`CMD-EV-XXXX`).
+  - [x] Detección automática de **"Evento único"** vs **"Evento concurrente"** en la jornada.
+  - [ ] Renderizado en UI del ticket con fecha, hora, cliente, pax, islas contratadas y detalle minucioso de restricciones alimentarias.
 - [ ] **Navegación Operativa**
   - [ ] Acceso directo a la comanda mediante enlace o clic en el evento desde el calendario de cocina.
-

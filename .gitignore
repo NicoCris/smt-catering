@@ -26,3 +26,10 @@ dist-ssr
 package-lock.json
 yarn.lock
 pnpm-lock.yaml
+
+# SQLite databases
+*.sqlite
+*.sqlite-journal
+*.sqlite3
+*.db
+*.db-journal

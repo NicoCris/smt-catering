@@ -1,0 +1,7 @@
+import { createRouter } from '../../types/http'
+import { QuotationController } from './quotation.controller'
+
+export const quotationRouter = createRouter()
+
+quotationRouter.get('/availability', QuotationController.checkDate)
+quotationRouter.post('/calculate', QuotationController.calculate)
