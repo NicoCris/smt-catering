@@ -10,6 +10,8 @@
  *  1. Usuario ingresa credenciales → submit del form.
  *  2. authStore.login() valida → si es correcto, navega a "/" (cotizador).
  *  3. Si falla, muestra mensaje de error inline (sin modal).
+ *  4. Enlace "¿Olvidaste tu contraseña?" abre ForgotPasswordModal (dos pasos).
+ *  5. Enlace "¿No tenés cuenta?" abre RegisterModal para nuevos clientes B2B.
  */
 import { useState, type FormEvent } from 'react'
 import { Navigate } from 'react-router-dom'
@@ -20,14 +22,18 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { useAuthStore } from '@/stores/authStore'
+import { ForgotPasswordModal } from '@/features/login/ForgotPasswordModal'
+import { RegisterModal } from '@/features/login/RegisterModal'
 
 export function LoginPage() {
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated)
   const login = useAuthStore((s) => s.login)
 
-  const [user, setUser] = useState('')
+  const [usernameInput, setUsernameInput] = useState('')
   const [pass, setPass] = useState('')
   const [error, setError] = useState(false)
+  const [showForgot, setShowForgot] = useState(false)
+  const [showRegister, setShowRegister] = useState(false)
 
   /* Si ya está autenticado, redirigir al cotizador */
   if (isAuthenticated) {
@@ -36,9 +42,15 @@ export function LoginPage() {
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault()
-    const ok = await login(user.trim(), pass)
+    const ok = await login(usernameInput.trim(), pass)
     if (!ok) {
       setError(true)
+    } else {
+      // Si el rol es superadmin, redirige directamente al panel de AdminJS
+      const loggedUser = useAuthStore.getState().user
+      if (loggedUser?.role === 'superadmin') {
+        window.location.href = '/admin'
+      }
     }
   }
 
@@ -69,9 +81,9 @@ export function LoginPage() {
               placeholder="Ingresá tu usuario"
               autoComplete="username"
               autoFocus
-              value={user}
+              value={usernameInput}
               onChange={(e) => {
-                setUser(e.target.value)
+                setUsernameInput(e.target.value)
                 setError(false)
               }}
             />
@@ -79,7 +91,17 @@ export function LoginPage() {
 
           {/* Campo contraseña */}
           <div className="space-y-1.5">
-            <Label htmlFor="login-pass">Contraseña</Label>
+            <div className="flex items-center justify-between">
+              <Label htmlFor="login-pass">Contraseña</Label>
+              {/* Enlace de recuperación — punto 3 de ISSUES.md §Login & Autenticación */}
+              <button
+                type="button"
+                onClick={() => setShowForgot(true)}
+                className="text-[12px] font-normal text-ink-mute underline-offset-2 transition-colors hover:text-primary hover:underline"
+              >
+                ¿Olvidaste tu contraseña?
+              </button>
+            </div>
             <Input
               id="login-pass"
               type="password"
@@ -106,18 +128,36 @@ export function LoginPage() {
             variant="primary"
             size="lg"
             className="w-full gap-2"
-            disabled={!user.trim() || !pass}
+            disabled={!usernameInput.trim() || !pass}
           >
             <LogIn className="h-4 w-4" />
             Iniciar sesión
           </Button>
         </form>
 
-        {/* Pie de card */}
+        {/* Enlace de registro para nuevos clientes */}
         <p className="mt-6 text-center text-[13px] font-normal tracking-[-0.39px] text-ink-mute">
-          Plataforma de gestión B2B
+          ¿No tenés cuenta?{' '}
+          <button
+            type="button"
+            onClick={() => setShowRegister(true)}
+            className="font-medium text-primary underline-offset-2 transition-colors hover:underline"
+          >
+            Registrate
+          </button>
         </p>
       </div>
+
+      {/* Modal de recuperación de contraseña */}
+      {showForgot && <ForgotPasswordModal onClose={() => setShowForgot(false)} />}
+
+      {/* Modal de registro de nuevo cliente B2B */}
+      {showRegister && (
+        <RegisterModal
+          onClose={() => setShowRegister(false)}
+          onSuccess={() => setShowRegister(false)}
+        />
+      )}
     </div>
   )
 }
