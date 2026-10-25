@@ -1,5 +1,5 @@
 import { STATIONS, type StationId } from '@/lib/constants'
-import { isWithinProductionWindow } from '@/lib/mock-data'
+import { isWithinProductionWindow } from '@/lib/utils'
 import type { EventRecord } from '@/types/domain'
 
 export interface StationConsolidation {

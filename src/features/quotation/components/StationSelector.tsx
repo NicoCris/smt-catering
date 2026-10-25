@@ -2,7 +2,7 @@ import { Check, Plus } from 'lucide-react'
 import { useMemo } from 'react'
 
 import { formatCurrency } from '@/lib/utils'
-import { mockStations } from '@/lib/mock-data'
+import { ESTACIONES_GASTRONOMICAS } from '@/lib/constants'
 import { useTariffStore } from '@/stores/tariffStore'
 import { useQuotationStore } from '@/stores/quotationStore'
 
@@ -33,7 +33,7 @@ export function StationSelector() {
         Estaciones culinarias
       </h2>
       <div className="grid gap-3 sm:grid-cols-2">
-        {mockStations.map((station) => {
+        {ESTACIONES_GASTRONOMICAS.map((station) => {
           const selected = stationIds.includes(station.id)
           return (
             <button
@@ -48,7 +48,7 @@ export function StationSelector() {
               }`}
             >
               <div className="flex items-start justify-between gap-2">
-                <span className="font-normal text-ink">{station.name}</span>
+                <span className="font-normal text-ink">{station.nombre}</span>
                 <span
                   className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-pill ${
                     selected ? 'bg-primary text-white' : 'bg-canvas-soft text-ink-mute'
@@ -58,11 +58,11 @@ export function StationSelector() {
                   {selected ? <Check className="h-3 w-3" /> : <Plus className="h-3 w-3" />}
                 </span>
               </div>
-              <p className="mt-1 text-xs text-ink-mute">{station.description}</p>
+              <p className="mt-1 text-xs text-ink-mute">{station.descripcion}</p>
               <p className="mt-2 text-sm text-ink-secondary tnum">
                 {formatCurrency(
                   tariffs.find((t) => t.id === station.id)?.pricePerGuestCents ??
-                    station.pricePerGuestCents,
+                    station.precioPorComensalCentavos,
                 )}{' '}
                 / comensal
               </p>

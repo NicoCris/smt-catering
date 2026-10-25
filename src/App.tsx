@@ -15,6 +15,7 @@
  *  original para posible redirect post-login.
  */
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
+import { useEffect } from 'react'
 import { BrowserRouter, Navigate, Outlet, Route, Routes } from 'react-router-dom'
 
 import { AppShell } from '@/components/layout/AppShell'
@@ -47,6 +48,11 @@ function ProtectedRoute() {
 }
 
 export default function App() {
+  const checkSession = useAuthStore((s) => s.checkSession)
+
+  useEffect(() => {
+    checkSession()
+  }, [checkSession])
   return (
     <QueryClientProvider client={queryClient}>
       <BrowserRouter>

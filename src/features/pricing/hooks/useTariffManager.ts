@@ -1,4 +1,4 @@
-import { useCallback, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 
 import { useTariffStore } from '@/stores/tariffStore'
 import type { Tariff, TariffChange } from '@/types/domain'
@@ -27,9 +27,17 @@ export interface TariffManager {
 export function useTariffManager(): TariffManager {
   const tariffs = useTariffStore((s) => s.tariffs)
   const history = useTariffStore((s) => s.history)
+  const isLoaded = useTariffStore((s) => s.isLoaded)
+  const fetchTariffs = useTariffStore((s) => s.fetchTariffs)
   const previewIncrease = useTariffStore((s) => s.previewIncrease)
   const commitIncrease = useTariffStore((s) => s.commitIncrease)
   const updateTariff = useTariffStore((s) => s.updateTariff)
+
+  useEffect(() => {
+    if (!isLoaded) {
+      fetchTariffs()
+    }
+  }, [isLoaded, fetchTariffs])
 
   const [preview, setPreview] = useState<Tariff[] | null>(null)
   const [percent, setPercent] = useState(15)

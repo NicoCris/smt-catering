@@ -34,9 +34,9 @@ export function LoginPage() {
     return <Navigate to="/" replace />
   }
 
-  const handleSubmit = (e: FormEvent) => {
+  const handleSubmit = async (e: FormEvent) => {
     e.preventDefault()
-    const ok = login(user.trim(), pass)
+    const ok = await login(user.trim(), pass)
     if (!ok) {
       setError(true)
     }

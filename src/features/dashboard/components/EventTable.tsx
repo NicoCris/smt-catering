@@ -1,8 +1,7 @@
 import { Link } from 'react-router-dom'
 
 import { Table, TBody, TD, TH, THead, TR } from '@/components/ui/table'
-import { daysUntil } from '@/lib/mock-data'
-import { formatCurrency } from '@/lib/utils'
+import { daysUntil, formatCurrency } from '@/lib/utils'
 import { EventStatusBadge, PaymentStatusBadge } from '@/features/dashboard/components/StatusBadges'
 import type { EventRecord } from '@/types/domain'
 

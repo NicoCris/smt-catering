@@ -2,7 +2,8 @@ import { AlertOctagon } from 'lucide-react'
 
 import { Badge } from '@/components/ui/badge'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { daysUntil, stationById } from '@/lib/mock-data'
+import { stationById } from '@/lib/constants'
+import { daysUntil } from '@/lib/utils'
 import type { EventRecord } from '@/types/domain'
 
 const fmtDate = (iso: string): string =>
