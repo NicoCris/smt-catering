@@ -25,15 +25,15 @@ Documento de seguimiento de tareas pendientes organizadas por vistas, módulos d
   - [x] Definir los 4 roles del sistema en contratos compartidos (`shared/types/roles.ts`): `superadmin`, `admin`, `cocina` y `cliente`.
   - [x] Crear middleware RBAC en backend (`server/middleware/roleGuard.ts`) para control de acceso por ruta y acción.
   - [ ] Integrar guards en frontend (`src/App.tsx`) para restringir rutas según rol autenticado.
-- [ ] **Proxy de Desarrollo & Cliente HTTP Unificado**
-  - [ ] Configurar proxy de Vite en `vite.config.ts` (`/api` -> `http://localhost:3001`) para evitar errores de CORS y habilitar transporte transparente de cookies en desarrollo y producción.
-  - [ ] Crear cliente HTTP centralizado (`src/lib/api.ts`) para unificar llamadas del frontend a endpoints relativos (`/api/...`).
+- [x] **Proxy de Desarrollo & Cliente HTTP Unificado**
+  - [x] Configurar proxy de Vite en `vite.config.ts` (`/api` -> `http://localhost:3001`) para evitar errores de CORS y habilitar transporte transparente de cookies en desarrollo y producción.
+  - [x] Crear cliente HTTP centralizado (`src/lib/api.ts`) para unificar llamadas del frontend a endpoints relativos (`/api/...`).
 - [ ] **Panel de Administración para Superadmin (AdminJS)**
   - [x] Crear módulo base de configuración (`server/modules/adminjs/adminjs.config.ts`).
   - [ ] Instalar `@adminjs/express` y conectar recursos para alta, baja, modificación y asignación de roles de usuarios.
-- [ ] **Unificación de Contratos y Modelos en Español (según MER_v3)**
-  - [ ] Migrar interfaces, DTOs y tipos compartidos (`shared/types/`) a español (`Cliente`, `Reserva`, `Estacion`, `Pago`, `ComandaProduccion`, `RestriccionAlimentaria`).
-  - [ ] Adaptar modelos del frontend (`src/types/domain.ts`) y stores para consumir las entidades con los nombres del MER_v3.
+- [x] **Unificación de Contratos y Modelos en Español (según MER_v3)**
+  - [x] Migrar interfaces, DTOs y tipos compartidos (`shared/types/modelos.ts`) a español (`Cliente`, `UsuarioStaff`, `Reserva`, `Estacion`, `DetalleReservaEstacion`, `RestriccionAlimentaria`, `Pago`, `ComandaProduccion`, `Tarifa`).
+  - [x] Adaptar modelos del frontend (`src/types/domain.ts`) y alias de compatibilidad para consumir las entidades con los nombres del MER_v3.
 - [x] **Arquitectura Modular Descentralizada**
   - [x] Crear capa de contratos compartidos (`shared/`) con tipos e interfaces TypeScript.
   - [x] Crear esquemas Zod compartidos (`shared/schemas/`) para validación unificada (auth y cotizador).
