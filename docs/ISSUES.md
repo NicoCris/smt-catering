@@ -13,17 +13,27 @@ Documento de seguimiento de tareas pendientes organizadas por vistas, módulos d
   - [x] Implementar script de reinicio instantáneo `npm run db:reset` (`server/db/reset.mjs`) para sincronizar al equipo sin conflictos de migraciones.
   - [x] Configurar exclusión en `.gitignore` para no subir archivos binarios `.sqlite` a Git.
   - [ ] Migración futura / conexión con Neon PostgreSQL en producción cuando se configure el entorno cloud.
-- [ ] **Autenticación & Sesiones**
+- [ ] **Autenticación, Sesiones & Arquitectura de Seguridad**
   - [x] Definir middleware de autenticación por cookies HTTP-only (`server/middleware/authGuard.ts`).
-  - [ ] Implementar firma y verificación real de JWT con secret key.
+  - [ ] Implementar firma y verificación real de JWT con secret key almacenado en Cookie HTTP-only (`SameSite=Lax`, `Secure`).
   - [ ] Implementar hashing seguro de contraseñas con `bcrypt` (o `argon2`).
+  - [ ] Endpoint `GET /api/auth/me`: devolver información del usuario autenticado (`id`, `nombre`, `email`, `rol`).
+  - > **Principio de Seguridad vs UX:**
+  - > - **Seguridad Real (Backend):** La seguridad reside exclusivamente en el backend mediante `authGuard` y `roleGuard`. El servidor valida la cookie JWT en cada petición y rechaza accesos no autorizados con `403 Forbidden`.
+  - > - **Renderizado UI (Frontend):** Al cargar la aplicación, el frontend consulta `GET /api/auth/me` y guarda la sesión en `useAuthStore` únicamente para propósitos visuales (ocultar botones que el rol no puede ejecutar, adaptar la navegación en `AppShell` y mostrar saludo personalizado).
 - [ ] **Sistema de Roles y Permisos (RBAC)**
   - [x] Definir los 4 roles del sistema en contratos compartidos (`shared/types/roles.ts`): `superadmin`, `admin`, `cocina` y `cliente`.
   - [x] Crear middleware RBAC en backend (`server/middleware/roleGuard.ts`) para control de acceso por ruta y acción.
   - [ ] Integrar guards en frontend (`src/App.tsx`) para restringir rutas según rol autenticado.
+- [ ] **Proxy de Desarrollo & Cliente HTTP Unificado**
+  - [ ] Configurar proxy de Vite en `vite.config.ts` (`/api` -> `http://localhost:3001`) para evitar errores de CORS y habilitar transporte transparente de cookies en desarrollo y producción.
+  - [ ] Crear cliente HTTP centralizado (`src/lib/api.ts`) para unificar llamadas del frontend a endpoints relativos (`/api/...`).
 - [ ] **Panel de Administración para Superadmin (AdminJS)**
   - [x] Crear módulo base de configuración (`server/modules/adminjs/adminjs.config.ts`).
   - [ ] Instalar `@adminjs/express` y conectar recursos para alta, baja, modificación y asignación de roles de usuarios.
+- [ ] **Unificación de Contratos y Modelos en Español (según MER_v3)**
+  - [ ] Migrar interfaces, DTOs y tipos compartidos (`shared/types/`) a español (`Cliente`, `Reserva`, `Estacion`, `Pago`, `ComandaProduccion`, `RestriccionAlimentaria`).
+  - [ ] Adaptar modelos del frontend (`src/types/domain.ts`) y stores para consumir las entidades con los nombres del MER_v3.
 - [x] **Arquitectura Modular Descentralizada**
   - [x] Crear capa de contratos compartidos (`shared/`) con tipos e interfaces TypeScript.
   - [x] Crear esquemas Zod compartidos (`shared/schemas/`) para validación unificada (auth y cotizador).
@@ -33,9 +43,9 @@ Documento de seguimiento de tareas pendientes organizadas por vistas, módulos d
 
 ## 2. Global, UI & Sistema de Diseño
 
-- [ ] **Unificación de Estilos & Librerías**
-  - [ ] Evaluar la necesidad de Bootstrap frente a la arquitectura actual (Tailwind CSS 4 + Radix UI) para evitar conflictos de especificidad y peso en el bundle.
-  - [ ] Garantizar consistencia visual de componentes (botones, modales, formularios, tablas) según el diseño oficial.
+- [x] **Estandarización de Estilos & Librerías**
+  - [x] Confirmado Tailwind CSS 4 + Radix UI como base oficial de estilos (descartado Bootstrap para evitar conflictos de especificidad y sobrecarga en el bundle).
+  - [ ] Garantizar consistencia visual de componentes (botones pill, modales, formularios, tablas) según el diseño oficial.
 - [ ] **Actualización de Paleta de Colores**
   - [ ] Aplicar la nueva paleta de colores en tokens de `@theme` (Tailwind) y variables globales CSS.
 - [ ] **Controles de Formulario**
