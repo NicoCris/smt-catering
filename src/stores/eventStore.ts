@@ -1,7 +1,6 @@
 import { create } from 'zustand'
 
 import { api } from '@/lib/api'
-import { mockEvents } from '@/lib/mock-data'
 import type { EventRecord, EventStatus, PaymentStatus } from '@/types/domain'
 
 /**
@@ -33,7 +32,7 @@ function generateNextId(existingEvents: EventRecord[]): string {
 }
 
 export const useEventStore = create<EventStoreState>()((set, get) => ({
-  events: mockEvents,
+  events: [],
   isLoading: false,
   isLoaded: false,
   error: null,

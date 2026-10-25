@@ -38,7 +38,8 @@ Documento de seguimiento de tareas pendientes organizadas por vistas, módulos d
   - [x] Garantizar paridad total de datos entre `server/db/seed.sql` y las pantallas del frontend (mismos clientes B2B, fechas dinámicas relativas a hoy, tarifas, estaciones y notas).
   - [x] Mover funciones utilitarias de fecha (`daysUntil`, `isWithinProductionWindow`) de `mock-data.ts` a `src/lib/utils.ts`.
   - [x] Conectar stores (`eventStore`, `tariffStore`, `authStore`) para consumir endpoints reales (`/api/events`, `/api/tariffs`, `/api/auth/me`).
-  - [x] Desacoplar `src/lib/mock-data.ts` del flujo principal de la aplicación.
+  - [x] Desacoplar y eliminar definitivamente `src/lib/mock-data.ts`.
+  - [x] Inicialización de stores en vacío (`[]`) y autenticación estricta contra `POST /api/auth/login` (el frontend no carga datos sin el backend levantado).
 - [x] **Arquitectura Modular Descentralizada**
   - [x] Crear capa de contratos compartidos (`shared/`) con tipos e interfaces TypeScript.
   - [x] Crear esquemas Zod compartidos (`shared/schemas/`) para validación unificada (auth y cotizador).

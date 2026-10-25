@@ -50,25 +50,8 @@ export const useAuthStore = create<AuthState>()(
             return true
           }
         } catch {
-          // Fallback offline para desarrollo / testing
-          if (
-            (usernameOrEmail === 'admin' && (pass === 'admin' || pass === 'admin123')) ||
-            usernameOrEmail === 'superadmin@smtcatering.com'
-          ) {
-            const fallbackUser: AuthUser = {
-              id: 2,
-              username: 'admin',
-              fullName: 'Coordinador Comercial',
-              email: 'admin@smtcatering.com',
-              role: 'admin',
-            }
-            set({
-              isAuthenticated: true,
-              user: fallbackUser,
-              username: fallbackUser.fullName,
-            })
-            return true
-          }
+          // Si el backend no está disponible o las credenciales fallan, no autentica
+          return false
         }
         return false
       },

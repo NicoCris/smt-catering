@@ -1,7 +1,6 @@
 import { create } from 'zustand'
 
 import { api } from '@/lib/api'
-import { mockTariffs } from '@/lib/mock-data'
 import { applyPercent } from '@/lib/utils'
 import type { Tariff, TariffChange } from '@/types/domain'
 
@@ -20,7 +19,7 @@ interface TariffManagerState {
 }
 
 export const useTariffStore = create<TariffManagerState>()((set, get) => ({
-  tariffs: mockTariffs,
+  tariffs: [],
   history: [],
   isLoading: false,
   isLoaded: false,

@@ -96,7 +96,7 @@ export function LoginPage() {
           {/* Mensaje de error (inline, sin modal) */}
           {error && (
             <p role="alert" className="text-sm text-state-danger">
-              Usuario o contraseña incorrectos
+              Usuario o contraseña incorrectos, o servidor no disponible.
             </p>
           )}
 

@@ -1,5 +1,5 @@
 import { Check, Plus } from 'lucide-react'
-import { useMemo } from 'react'
+import { useEffect, useMemo } from 'react'
 
 import { formatCurrency } from '@/lib/utils'
 import { ESTACIONES_GASTRONOMICAS } from '@/lib/constants'
@@ -21,6 +21,14 @@ export function StationSelector() {
   const toggleStation = useQuotationStore((s) => s.toggleStation)
   const toggleExtra = useQuotationStore((s) => s.toggleExtra)
   const tariffs = useTariffStore((s) => s.tariffs)
+  const isLoaded = useTariffStore((s) => s.isLoaded)
+  const fetchTariffs = useTariffStore((s) => s.fetchTariffs)
+
+  useEffect(() => {
+    if (!isLoaded) {
+      fetchTariffs()
+    }
+  }, [isLoaded, fetchTariffs])
 
   const extras = useMemo(
     () => tariffs.filter((t) => t.category === 'extra'),
