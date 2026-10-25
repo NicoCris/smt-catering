@@ -1,155 +1,194 @@
 -- =====================================================================
 -- SMT Catering — Datos Iniciales y Smoke Test Data (seed.sql)
+-- Totalmente alineado con los datos y pantallas del Frontend
 -- =====================================================================
 
--- 1. USUARIOS STAFF (Contraseña por defecto hasheada: 'admin123')
+-- 1. USUARIOS STAFF (Password: 'admin123')
 INSERT OR REPLACE INTO usuario_staff (id_usuario, nombre_completo, email, password_hash, rol, activo) VALUES
   (1, 'Super Administrador', 'superadmin@smtcatering.com', '$2b$10$EpRnTzVlqHNP0.fUbXUwSOyuiXe/QLSUG6x8ecgy5pLJQlnNRUxoi', 'superadmin', 1),
   (2, 'Coordinador Comercial', 'admin@smtcatering.com', '$2b$10$EpRnTzVlqHNP0.fUbXUwSOyuiXe/QLSUG6x8ecgy5pLJQlnNRUxoi', 'admin', 1),
   (3, 'Chef Ejecutivo de Cocina', 'cocina@smtcatering.com', '$2b$10$EpRnTzVlqHNP0.fUbXUwSOyuiXe/QLSUG6x8ecgy5pLJQlnNRUxoi', 'cocina', 1);
 
--- 2. CLIENTES CORPORATIVOS (Empresas B2B)
+-- 2. CLIENTES CORPORATIVOS (Empresas B2B del Mock Data)
 INSERT OR REPLACE INTO cliente (id_cliente, razon_social, cuit, nombre_completo, cargo_responsable, email, telefono, direccion_legal, fecha_aniversario, password_hash) VALUES
-  (1, 'Tech Solutions S.A.', '30-71234567-9', 'Martín Rodríguez', 'Gerente de Operaciones', 'eventos@techsolutions.com', '+54 11 4555-0101', 'Av. del Libertador 4400, CABA', '2015-10-15', '$2b$10$EpRnTzVlqHNP0.fUbXUwSOyuiXe/QLSUG6x8ecgy5pLJQlnNRUxoi'),
-  (2, 'Finanzas Globales Corp', '30-68912345-4', 'Valeria Gómez', 'Directora de RRHH', 'rrhh@finanzasglobales.com', '+54 11 4888-2233', 'Reconquista 650, CABA', '2010-05-20', '$2b$10$EpRnTzVlqHNP0.fUbXUwSOyuiXe/QLSUG6x8ecgy5pLJQlnNRUxoi'),
-  (3, 'Laboratorios Río de la Plata', '33-54321987-9', 'Esteban Morales', 'Gerente Comercial', 'eventos@laboratoriosrio.com', '+54 11 4777-3344', 'Av. Santa Fe 3200, CABA', '2005-11-10', '$2b$10$EpRnTzVlqHNP0.fUbXUwSOyuiXe/QLSUG6x8ecgy5pLJQlnNRUxoi'),
-  (4, 'Innova Digital Studio', '30-76543210-2', 'Lucía Rossi', 'Chief People Officer', 'lucia@innovastudio.com', '+54 11 4999-5566', 'Humboldt 1900, Palermo, CABA', '2020-03-01', '$2b$10$EpRnTzVlqHNP0.fUbXUwSOyuiXe/QLSUG6x8ecgy5pLJQlnNRUxoi');
+  (1, 'Aluar S.A. — Comité de Directores', '30-50001234-9', 'Martín Aluar', 'Director de RRII', 'eventos@aluar.com.ar', '+54 11 4310-0000', 'Pasteur 4600, CABA', '1970-06-10', '$2b$10$EpRnTzVlqHNP0.fUbXUwSOyuiXe/QLSUG6x8ecgy5pLJQlnNRUxoi'),
+  (2, 'Banco Macro — Capacitación Regional', '30-50000734-5', 'Valeria Macro', 'Gerente de Capacitación', 'capacitacion@macro.com.ar', '+54 11 5222-8000', 'Av. Eduardo Madero 1180, CABA', '1988-08-22', '$2b$10$EpRnTzVlqHNP0.fUbXUwSOyuiXe/QLSUG6x8ecgy5pLJQlnNRUxoi'),
+  (3, 'Estudio Lagom — Lanzamiento de Producto', '30-71556677-4', 'Santiago Lagom', 'Socio Fundador', 'eventos@lagom.com', '+54 11 4777-1122', 'Humboldt 1550, CABA', '2018-09-15', '$2b$10$EpRnTzVlqHNP0.fUbXUwSOyuiXe/QLSUG6x8ecgy5pLJQlnNRUxoi'),
+  (4, 'Farmacity — Inauguración Sucursal Caballito', '30-69213874-3', 'Carolina Ramos', 'Jefa de Marketing', 'eventos@farmacity.com.ar', '+54 11 4814-7700', 'Santa Fe 2830, CABA', '1997-04-12', '$2b$10$EpRnTzVlqHNP0.fUbXUwSOyuiXe/QLSUG6x8ecgy5pLJQlnNRUxoi'),
+  (5, 'MetLife — Reunión Anual', '30-61112233-1', 'Federico Peña', 'Comité de Eventos', 'eventos@metlife.com.ar', '+54 11 5000-4000', 'Av. Leandro N. Alem 855, CABA', '1994-11-01', '$2b$10$EpRnTzVlqHNP0.fUbXUwSOyuiXe/QLSUG6x8ecgy5pLJQlnNRUxoi'),
+  (6, 'Innova Digital Studio', '30-76543210-2', 'Lucía Rossi', 'Chief People Officer', 'lucia@innovastudio.com', '+54 11 4999-5566', 'Bonpland 1800, CABA', '2020-03-01', '$2b$10$EpRnTzVlqHNP0.fUbXUwSOyuiXe/QLSUG6x8ecgy5pLJQlnNRUxoi');
 
--- 3. ESTACIONES / ISLAS GASTRONOMICAS
+-- 3. ESTACIONES GASTRONOMICAS
 INSERT OR REPLACE INTO estacion (id_estacion, nombre, tipo_comida, descripcion, precio_por_persona) VALUES
-  (1, 'Entradas Gourmet', 'salado', 'Tablas de fiambres premium, quesos madurados, bruschettas y focaccias artesanales', 2800.00),
-  (2, 'Pastas Rellenas Artesanales', 'salado', 'Sorrentinos de salmón y raviolones con salsas caseras preparadas a la vista', 3500.00),
-  (3, 'Parrilla Premium al Asador', 'salado', 'Cortes seleccionados de asado, vacío criollo, provoletas y vegetales grillados', 5200.00),
-  (4, 'Cocina Asiática & Wok en Vivo', 'salado', 'Salteados de lomo y pollo al wok, dumplings al vapor y gyozas tradicionales', 4600.00),
-  (5, 'Estación Dulce & Chocolates', 'dulce', 'Mesa dulce con minitortas, shots gourmet, cascada de chocolate belga y café', 2200.00);
+  (1, 'Entradas', 'salado', 'Tabla de fiambres, bruschettas y verrinas', 3500.00),
+  (2, 'Pastas', 'salado', 'Ravioles de ricota, ñoquis de papa y salsa a elección', 5200.00),
+  (3, 'Parrilla', 'salado', 'Bife de chorizo, cordero y verduras asadas', 6100.00),
+  (4, 'Cocina Asiática', 'salado', 'Rollitos, wok de vegetales y arroz jazmín', 5700.00),
+  (5, 'Estación Dulce', 'dulce', 'Petit fours, flan y mini madalenas', 2800.00);
 
--- 4. TARIFAS BASE DEL COTIZADOR Y SEGURO
+-- 4. TARIFAS BASE, ESTACIONES Y SEGURO (En centavos para el cotizador)
 INSERT OR REPLACE INTO tarifas (id, label, category, price_per_guest_cents, fixed_cents, is_active) VALUES
-  ('tar-base', 'Servicio Base, Vajilla y Logística', 'base', 450000, 0, 1),
-  ('entradas', 'Entradas Gourmet', 'station', 280000, 0, 1),
-  ('pastas', 'Pastas Rellenas', 'station', 350000, 0, 1),
-  ('parrilla', 'Parrilla Premium', 'station', 520000, 0, 1),
-  ('asiatica', 'Cocina Asiática', 'station', 460000, 0, 1),
-  ('dulce', 'Estación Dulce', 'station', 220000, 0, 1),
+  ('base-cubierto', 'Cubierto base (servicio y logística)', 'base', 180000, 0, 1),
+  ('entradas', 'Entradas', 'station', 350000, 0, 1),
+  ('pastas', 'Pastas', 'station', 520000, 0, 1),
+  ('parrilla', 'Parrilla', 'station', 610000, 0, 1),
+  ('asiatica', 'Cocina Asiática', 'station', 570000, 0, 1),
+  ('dulce', 'Estación Dulce', 'station', 280000, 0, 1),
   ('tar-seguro', 'Seguro de Evento y Responsabilidad Civil', 'insurance', 0, 4500000, 1);
 
--- 5. RESERVAS DE PRUEBA (SMOKE DATA REALISTA)
+-- 5. RESERVAS CON FECHAS DINÁMICAS (Usa date('now', '±X days') para estar siempre en la ventana correcta)
 
--- Reserva 1: Evento Pasado, Concluido y 100% Saldado (Viernes)
+-- EV-1041: Aluar S.A. (+12 días) -> Dentro de ventana de producción (<= 30 días)
 INSERT OR REPLACE INTO reserva (
   id_reserva, id_cliente, fecha_evento, hora_inicio, hora_fin, duracion_horas,
   cantidad_invitados, direccion_evento, distancia_km, evento_cancelado,
-  monto_total, monto_seguro, fecha_creacion, fecha_actualizacion, actualizado_por
+  monto_total, monto_seguro, fecha_creacion, actualizado_por
 ) VALUES (
-  1, 1, '2026-10-09', '19:30', '22:30', 3.0,
-  80, 'Av. Figueroa Alcorta 5500, CABA', 9.50, 0,
-  1221000.00, 45000.00, '2026-09-01 10:00:00', '2026-10-09 23:00:00', 'admin'
+  1041, 1, date('now', '+12 days'), '19:30', '22:30', 3.0,
+  90, 'Pasteur 4600, CABA', 8.50, 0,
+  1188000.00, 45000.00, datetime('now', '-30 days'), 'admin'
 );
 
--- Reserva 2: Evento Futuro en Producción (Sábado) - Seña 50% abonada, saldo pendiente
+-- EV-1042: Banco Macro (+25 días) -> En Producción / Saldo pendiente (<= 30 días)
 INSERT OR REPLACE INTO reserva (
   id_reserva, id_cliente, fecha_evento, hora_inicio, hora_fin, duracion_horas,
   cantidad_invitados, direccion_evento, distancia_km, evento_cancelado,
-  monto_total, monto_seguro, fecha_creacion, fecha_actualizacion, actualizado_por
+  monto_total, monto_seguro, fecha_creacion, actualizado_por
 ) VALUES (
-  2, 2, '2026-11-14', '20:00', '23:00', 3.0,
-  100, 'Costa Salguero, Pabellón 2, CABA', 11.20, 0,
-  1805000.00, 45000.00, '2026-10-15 14:30:00', '2026-10-16 11:20:00', 'admin'
+  1042, 2, date('now', '+25 days'), '20:00', '23:00', 3.0,
+  120, 'Av. Eduardo Madero 1180, CABA', 11.20, 0,
+  1596000.00, 45000.00, datetime('now', '-20 days'), 'admin'
 );
 
--- Reserva 3: Evento Concurrente A en la misma fecha (Sábado, 55 invitados <= 60)
+-- EV-1043: Estudio Lagom (+5 días) -> Seña pendiente / Urgente (<= 14 días)
 INSERT OR REPLACE INTO reserva (
   id_reserva, id_cliente, fecha_evento, hora_inicio, hora_fin, duracion_horas,
   cantidad_invitados, direccion_evento, distancia_km, evento_cancelado,
-  monto_total, monto_seguro, fecha_creacion, fecha_actualizacion, actualizado_por
+  monto_total, monto_seguro, fecha_creacion, actualizado_por
 ) VALUES (
-  3, 3, '2026-11-21', '19:00', '22:00', 3.0,
-  55, 'Espacio Márquez, San Isidro', 18.00, 0,
-  897500.00, 45000.00, '2026-10-20 09:15:00', '2026-10-21 16:00:00', 'admin'
+  1043, 3, date('now', '+5 days'), '19:00', '22:00', 3.0,
+  60, 'Humboldt 1550, CABA', 5.00, 0,
+  738000.00, 45000.00, datetime('now', '-15 days'), 'admin'
 );
 
--- Reserva 4: Evento Concurrente B en la misma fecha (Sábado, 60 invitados <= 60)
+-- EV-1044: Farmacity (+48 días) -> Presupuestado / Fuera de ventana de producción (> 30 días)
 INSERT OR REPLACE INTO reserva (
   id_reserva, id_cliente, fecha_evento, hora_inicio, hora_fin, duracion_horas,
   cantidad_invitados, direccion_evento, distancia_km, evento_cancelado,
-  monto_total, monto_seguro, fecha_creacion, fecha_actualizacion, actualizado_por
+  monto_total, monto_seguro, fecha_creacion, actualizado_por
 ) VALUES (
-  4, 4, '2026-11-21', '20:30', '23:30', 3.0,
-  60, 'Salón Belgrano R, Sucre 2800, CABA', 7.50, 0,
-  981000.00, 45000.00, '2026-10-22 17:45:00', '2026-10-23 10:00:00', 'admin'
+  1044, 4, date('now', '+48 days'), '20:00', '23:00', 3.0,
+  100, 'Santa Fe 2830, CABA', 7.50, 0,
+  1430000.00, 45000.00, datetime('now', '-2 days'), 'admin'
 );
 
--- Reserva 5: Evento Cancelado por el cliente
+-- EV-1039: MetLife (-10 días) -> Histórico / Pasado / Completado
 INSERT OR REPLACE INTO reserva (
   id_reserva, id_cliente, fecha_evento, hora_inicio, hora_fin, duracion_horas,
   cantidad_invitados, direccion_evento, distancia_km, evento_cancelado,
-  monto_total, monto_seguro, fecha_creacion, fecha_actualizacion, actualizado_por
+  monto_total, monto_seguro, fecha_creacion, actualizado_por
 ) VALUES (
-  5, 1, '2026-11-28', '20:00', '23:00', 3.0,
-  70, 'Av. Corrientes 1200, CABA', 4.00, 1,
-  1055000.00, 45000.00, '2026-10-18 12:00:00', '2026-10-24 09:00:00', 'admin'
+  1039, 5, date('now', '-10 days'), '19:30', '22:30', 3.0,
+  80, 'Av. Leandro N. Alem 855, CABA', 9.00, 0,
+  1024000.00, 45000.00, datetime('now', '-45 days'), 'admin'
 );
 
--- 6. DETALLE DE ESTACIONES CONTRATADAS POR RESERVA
--- Reserva 1 (Tech Solutions): Entradas (1), Parrilla (3), Dulce (5)
+-- EV-1045: Innova Digital Studio (+5 días) -> Concurrente en misma fecha con Estudio Lagom (60 y 55 pax <= 60)
+INSERT OR REPLACE INTO reserva (
+  id_reserva, id_cliente, fecha_evento, hora_inicio, hora_fin, duracion_horas,
+  cantidad_invitados, direccion_evento, distancia_km, evento_cancelado,
+  monto_total, monto_seguro, fecha_creacion, actualizado_por
+) VALUES (
+  1045, 6, date('now', '+5 days'), '20:30', '23:30', 3.0,
+  55, 'Bonpland 1800, CABA', 6.00, 0,
+  687500.00, 45000.00, datetime('now', '-10 days'), 'admin'
+);
+
+-- 6. ESTACIONES CONTRATADAS POR RESERVA
+-- EV-1041: entradas (1), pastas (2), parrilla (3), dulce (5)
 INSERT OR REPLACE INTO detalle_reserva_estacion (id_reserva, id_estacion, subtotal_calculado) VALUES
-  (1, 1, 224000.00),
-  (1, 3, 416000.00),
-  (1, 5, 176000.00);
+  (1041, 1, 315000.00),
+  (1041, 2, 468000.00),
+  (1041, 3, 549000.00),
+  (1041, 5, 252000.00);
 
--- Reserva 2 (Finanzas Globales): Entradas (1), Pastas (2), Asiática (4), Dulce (5)
+-- EV-1042: entradas (1), pastas (2), asiatica (4), dulce (5)
 INSERT OR REPLACE INTO detalle_reserva_estacion (id_reserva, id_estacion, subtotal_calculado) VALUES
-  (2, 1, 280000.00),
-  (2, 2, 350000.00),
-  (2, 4, 460000.00),
-  (2, 5, 220000.00);
+  (1042, 1, 420000.00),
+  (1042, 2, 624000.00),
+  (1042, 4, 684000.00),
+  (1042, 5, 336000.00);
 
--- Reserva 3 (Laboratorios Río): Entradas (1), Parrilla (3), Dulce (5)
+-- EV-1043: entradas (1), parrilla (3), dulce (5)
 INSERT OR REPLACE INTO detalle_reserva_estacion (id_reserva, id_estacion, subtotal_calculado) VALUES
-  (3, 1, 154000.00),
-  (3, 3, 286000.00),
-  (3, 5, 121000.00);
+  (1043, 1, 210000.00),
+  (1043, 3, 366000.00),
+  (1043, 5, 168000.00);
 
--- Reserva 4 (Innova Studio): Entradas (1), Pastas (2), Asiática (4)
+-- EV-1044: entradas (1), pastas (2), parrilla (3), asiatica (4), dulce (5)
 INSERT OR REPLACE INTO detalle_reserva_estacion (id_reserva, id_estacion, subtotal_calculado) VALUES
-  (4, 1, 168000.00),
-  (4, 2, 210000.00),
-  (4, 4, 276000.00);
+  (1044, 1, 350000.00),
+  (1044, 2, 520000.00),
+  (1044, 3, 610000.00),
+  (1044, 4, 570000.00),
+  (1044, 5, 280000.00);
 
--- 7. RESTRICCIONES ALIMENTARIAS (Normalizadas 1 a N)
+-- EV-1039: entradas (1), pastas (2), dulce (5)
+INSERT OR REPLACE INTO detalle_reserva_estacion (id_reserva, id_estacion, subtotal_calculado) VALUES
+  (1039, 1, 280000.00),
+  (1039, 2, 416000.00),
+  (1039, 5, 224000.00);
+
+-- EV-1045: entradas (1), pastas (2), asiatica (4)
+INSERT OR REPLACE INTO detalle_reserva_estacion (id_reserva, id_estacion, subtotal_calculado) VALUES
+  (1045, 1, 192500.00),
+  (1045, 2, 286000.00),
+  (1045, 4, 313500.00);
+
+-- 7. RESTRICCIONES ALIMENTARIAS (Normalizadas)
 INSERT OR REPLACE INTO restriccion_alimentaria (id_restriccion, id_reserva, tipo_restriccion, cantidad_personas, observaciones) VALUES
-  (1, 1, 'Celiaquía', 4, 'Separación estricta de utensilios y vajilla en sector este'),
-  (2, 1, 'Vegetarianos', 6, 'Menú vegetariano lacto-ovo'),
-  (3, 1, 'Alergias Severas', 2, 'Alérgicos a mariscos y frutos secos (nuez/almendra)'),
-  (4, 2, 'Celiaquía', 5, 'Bandejeo individual termosellado sin TACC'),
-  (5, 2, 'Vegetarianos', 12, 'Incluye opciones veganas en la isla asiática'),
-  (6, 2, 'Veganos', 3, 'Wok exclusivo 100% a base de plantas'),
-  (7, 2, 'Otros', 2, 'Menú Kosher supervisado'),
-  (8, 3, 'Celiaquía', 3, 'Panera sin TACC certificada'),
-  (9, 4, 'Intolerancia a la Lactosa', 4, 'Preparaciones de pastas y salsas sin derivados lácteos');
+  (1, 1041, 'Celiaquía', 4, 'Separación estricta de utensilios'),
+  (2, 1041, 'Vegetarianos', 7, 'Opción lacto-ovo'),
+  (3, 1041, 'Veganos', 2, 'Sin productos de origen animal'),
+  (4, 1041, 'Alergias', 2, 'Alérgicos a frutos secos'),
+  (5, 1042, 'Celiaquía', 6, 'Menú individual termosellado'),
+  (6, 1042, 'Vegetarianos', 12, 'Pastas y ensaladas sin carne'),
+  (7, 1042, 'Veganos', 4, 'Wok exclusivo en la isla asiática'),
+  (8, 1042, 'Alergias', 2, 'Alérgicos a mariscos en mesa 3 y 4'),
+  (9, 1043, 'Celiaquía', 1, 'Plato sin TACC'),
+  (10, 1043, 'Vegetarianos', 5, 'Menú vegetariano'),
+  (11, 1043, 'Veganos', 1, 'Menú vegano'),
+  (12, 1044, 'Celiaquía', 3, 'Menú celíaco'),
+  (13, 1044, 'Vegetarianos', 8, 'Menú vegetariano'),
+  (14, 1044, 'Veganos', 3, 'Menú vegano'),
+  (15, 1044, 'Alergias', 1, 'Intolerante a los lácteos'),
+  (16, 1039, 'Celiaquía', 2, 'Menú celíaco'),
+  (17, 1039, 'Vegetarianos', 6, 'Menú vegetariano'),
+  (18, 1039, 'Veganos', 1, 'Menú vegano');
 
--- 8. PAGOS Y LIQUIDACIONES
--- Reserva 1: Seña 50% + Saldo 50% abonados (Totalmente saldado)
-INSERT OR REPLACE INTO pago (id_pago, id_reserva, tipo_pago, monto, pago_online, pago_completo, fecha_pago, estado) VALUES
-  (1, 1, 'SEÑA', 610500.00, 1, 0, '2026-09-02 11:30:00', 'confirmado'),
-  (2, 1, 'SALDO', 610500.00, 1, 1, '2026-10-02 16:45:00', 'confirmado');
+-- 8. PAGOS
+-- EV-1041: Seña abonada (40% de 1188000 = 475200)
+INSERT OR REPLACE INTO pago (id_pago, id_reserva, tipo_pago, monto, pago_online, pago_completo, estado) VALUES
+  (1, 1041, 'SEÑA', 475200.00, 1, 0, 'confirmado');
 
--- Reserva 2: Seña 50% abonada (Saldo pendiente)
-INSERT OR REPLACE INTO pago (id_pago, id_reserva, tipo_pago, monto, pago_online, pago_completo, fecha_pago, estado) VALUES
-  (3, 2, 'SEÑA', 902500.00, 1, 0, '2026-10-16 10:15:00', 'confirmado');
+-- EV-1042: Seña abonada (40% de 1596000 = 638400, saldo pendiente)
+INSERT OR REPLACE INTO pago (id_pago, id_reserva, tipo_pago, monto, pago_online, pago_completo, estado) VALUES
+  (2, 1042, 'SEÑA', 638400.00, 1, 0, 'confirmado');
 
--- Reserva 3: Seña 50% abonada (Saldo pendiente)
-INSERT OR REPLACE INTO pago (id_pago, id_reserva, tipo_pago, monto, pago_online, pago_completo, fecha_pago, estado) VALUES
-  (4, 3, 'SEÑA', 448750.00, 1, 0, '2026-10-21 14:00:00', 'confirmado');
+-- EV-1039: Totalmente saldado (Seña + Saldo)
+INSERT OR REPLACE INTO pago (id_pago, id_reserva, tipo_pago, monto, pago_online, pago_completo, estado) VALUES
+  (3, 1039, 'SEÑA', 409600.00, 1, 0, 'confirmado'),
+  (4, 1039, 'SALDO', 614400.00, 1, 1, 'confirmado');
 
--- Reserva 4: Pago total 100% adelantado
-INSERT OR REPLACE INTO pago (id_pago, id_reserva, tipo_pago, monto, pago_online, pago_completo, fecha_pago, estado) VALUES
-  (5, 4, 'TOTAL', 981000.00, 1, 1, '2026-10-23 09:30:00', 'confirmado');
+-- EV-1045: Seña abonada del 50%
+INSERT OR REPLACE INTO pago (id_pago, id_reserva, tipo_pago, monto, pago_online, pago_completo, estado) VALUES
+  (5, 1045, 'SEÑA', 343750.00, 1, 0, 'confirmado');
 
--- 9. COMANDAS DE PRODUCCION (Desdobladas por brigada de cocina)
--- Reserva 2 (Evento en producción): 4 brigadas notificadas
+-- 9. COMANDAS DE PRODUCCION
 INSERT OR REPLACE INTO comanda_produccion (id_comanda, id_reserva, id_estacion, observaciones, fecha_emision, actualizado_por) VALUES
-  (1, 2, 1, '{"estacion": "Entradas", "comensales": 100, "dietas": {"celiacos": 5, "vegetarianos": 12}, "prioridad": "alta"}', '2026-10-16 11:30:00', 'admin'),
-  (2, 2, 2, '{"estacion": "Pastas", "comensales": 100, "dietas": {"vegetarianos": 12, "kosher": 2}, "instrucciones": "Marcha a las 20:45"}', '2026-10-16 11:30:00', 'admin'),
-  (3, 2, 4, '{"estacion": "Asiatica", "comensales": 100, "dietas": {"veganos": 3, "alergias": "sin sesamo"}, "woks": 2}', '2026-10-16 11:30:00', 'admin'),
-  (4, 2, 5, '{"estacion": "Dulce", "comensales": 100, "dietas": {"celiacos": 5}, "postres": "Minitortas y cascada"}', '2026-10-16 11:30:00', 'admin');
+  (1, 1041, 1, '{"estacion": "Entradas", "comensales": 90, "notas": "Salsa sin glutamato para mesa 6"}', datetime('now', '-5 days'), 'admin'),
+  (2, 1041, 2, '{"estacion": "Pastas", "comensales": 90, "dietas": {"celiacos": 4, "vegetarianos": 7}}', datetime('now', '-5 days'), 'admin'),
+  (3, 1041, 3, '{"estacion": "Parrilla", "comensales": 90, "dietas": {"vegetarianos": 7}}', datetime('now', '-5 days'), 'admin'),
+  (4, 1041, 5, '{"estacion": "Dulce", "comensales": 90, "postres": "Minitortas"}', datetime('now', '-5 days'), 'admin'),
+  (5, 1042, 1, '{"estacion": "Entradas", "comensales": 120, "notas": "Confirmar logistica por Parque Industrial"}', datetime('now', '-2 days'), 'admin'),
+  (6, 1042, 2, '{"estacion": "Pastas", "comensales": 120, "dietas": {"celiacos": 6}}', datetime('now', '-2 days'), 'admin');
