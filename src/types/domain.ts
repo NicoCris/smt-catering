@@ -1,37 +1,53 @@
 import type { StationId } from '@/lib/constants'
 
-/** Estado de negocio del evento (no confundir con PaymentStatus). */
-export type EventStatus =
-  | 'Presupuestado'
-  | 'Señado / Confirmado'
-  | 'En Producción'
-  | 'Completado'
-  | 'Cancelado'
+// Re-exportar todas las entidades oficiales en Español según MER_v3
+export type {
+  Cliente,
+  UsuarioStaff,
+  Reserva,
+  Estacion,
+  DetalleReservaEstacion,
+  RestriccionAlimentaria,
+  Pago,
+  ComandaProduccion,
+  Tarifa,
+  EstadoEvento,
+  EstadoPago,
+  TipoPago,
+  EstadoTransaccionPago,
+  CategoriaTarifa,
+} from '@shared/types/modelos'
 
-/** Estado de cobro (enum separado del estado del evento). */
-export type PaymentStatus =
-  | 'SEÑA_PENDIENTE'
-  | 'SEÑA_ABONADA'
-  | 'SALDO_PENDIENTE'
-  | 'TOTALMENTE_SALDADO'
+import type { EstadoEvento, EstadoPago, CategoriaTarifa } from '@shared/types/modelos'
 
-/** Restricciones alimentarias. La suma de dietas nunca puede superar los comensales. */
+/** Estado de negocio del evento (equivalente a EstadoEvento del MER) */
+export type EventStatus = EstadoEvento
+
+/** Estado de cobro (equivalente a EstadoPago del MER) */
+export type PaymentStatus = EstadoPago
+
+/** Restricciones alimentarias (formato frontend para cotizador rápido) */
 export interface DietaryRequirement {
   celiacos: number
   vegetarianos: number
   veganos: number
   /** Descripción libre de alergias (ej. "frutos secos, mariscos"). */
   alergias: string
+  otrosDetalle?: string
+  otrosCantidad?: number
 }
 
+/** Estación culinaria */
 export interface Station {
   id: StationId
   name: string
   /** Precio por comensal en centavos. */
   pricePerGuestCents: number
   description: string
+  imageUrl?: string
 }
 
+/** Registro de evento / reserva en frontend */
 export interface EventRecord {
   id: string
   clientName: string
@@ -46,9 +62,17 @@ export interface EventRecord {
   dietary: DietaryRequirement
   /** Productos/observaciones críticas para cocina (sin precios). */
   kitchenNotes: string
+
+  // Campos extendidos MER_v3
+  startTime?: string
+  endTime?: string
+  durationHours?: number
+  locationAddress?: string
+  distanceKm?: number
+  insuranceCents?: number
 }
 
-export type TariffCategory = 'base' | 'station' | 'extra'
+export type TariffCategory = CategoriaTarifa
 
 export interface Tariff {
   id: string
@@ -56,6 +80,7 @@ export interface Tariff {
   category: TariffCategory
   /** Precio por comensal en centavos. */
   pricePerGuestCents: number
+  fixedCents?: number
 }
 
 export interface TariffChange {

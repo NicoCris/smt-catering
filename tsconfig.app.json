@@ -22,7 +22,8 @@
 
     /* Paths (TS 6: paths sin baseUrl, relativos a este tsconfig) */
     "paths": {
-      "@/*": ["./src/*"]
+      "@/*": ["./src/*"],
+      "@shared/*": ["./shared/*"]
     },
 
     /* Linting */
@@ -31,5 +32,5 @@
     "erasableSyntaxOnly": true,
     "noFallthroughCasesInSwitch": true
   },
-  "include": ["src"]
+  "include": ["src", "shared"]
 }

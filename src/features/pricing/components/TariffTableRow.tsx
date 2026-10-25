@@ -12,6 +12,7 @@ const categoryLabel: Record<Tariff['category'], string> = {
   base: 'Base',
   station: 'Estación',
   extra: 'Adicional',
+  insurance: 'Seguro',
 }
 
 interface RowItemProps {
