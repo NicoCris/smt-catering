@@ -12,7 +12,7 @@ import {
   consolidateByStation,
   generateKitchenExport,
 } from '@/features/production/utils/generateKitchenExport'
-import { daysUntil, isWithinProductionWindow } from '@/lib/mock-data'
+import { daysUntil, isWithinProductionWindow } from '@/lib/utils'
 
 /**
  * Módulo 2 — Comandas Técnicas de Producción para Cocina y Planta Centralizada.

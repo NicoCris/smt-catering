@@ -1,8 +1,7 @@
 import { useMemo, useState } from 'react'
 
 import { PageHeader } from '@/components/layout/AppShell'
-import { cn } from '@/lib/utils'
-import { daysUntil } from '@/lib/mock-data'
+import { cn, daysUntil } from '@/lib/utils'
 import { KpiGrid } from '@/features/dashboard/components/KpiGrid'
 import { EventCards, EventTable } from '@/features/dashboard/components/EventTable'
 import {

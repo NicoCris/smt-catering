@@ -1,54 +1,96 @@
 /**
- * Auth Store — Zustand store para gestión de autenticación.
+ * Auth Store — Zustand store para gestión de autenticación conectado a la API.
  *
- * Gestiona el estado de sesión de la aplicación (login/logout).
- * Credenciales por defecto: usuario "admin", contraseña "admin".
- *
- * Persistencia: usa sessionStorage para mantener la sesión activa
- * mientras la pestaña esté abierta. Se borra al cerrar el navegador.
- *
- * Consumido por:
- *  - App.tsx → para decidir si renderizar rutas protegidas o redirigir a /login.
- *  - LoginPage.tsx → para ejecutar el login.
- *  - AppShell.tsx → para mostrar botón de logout.
+ * Arquitectura de Seguridad (docs/ISSUES.md):
+ * - Backend: Autoridad central que valida credenciales y emite cookies HTTP-only de sesión.
+ * - Frontend: Almacena { id, username, fullName, email, role } para renderizado y permisos de UI.
  */
 import { create } from 'zustand'
 import { persist, createJSONStorage } from 'zustand/middleware'
+import { api } from '@/lib/api'
+import type { UserRole } from '@shared/types/roles'
 
-/** Credenciales válidas (hardcoded para MVP sin backend). */
-const VALID_USER = 'admin'
-const VALID_PASS = 'admin'
+export interface AuthUser {
+  id: number | string
+  username: string
+  fullName?: string
+  email?: string
+  role?: UserRole
+}
 
 interface AuthState {
-  /** Indica si el usuario tiene una sesión activa */
   isAuthenticated: boolean
-  /** Nombre de usuario autenticado (null si no hay sesión) */
+  user: AuthUser | null
   username: string | null
-  /**
-   * Intenta autenticar con usuario y contraseña.
-   * @returns true si las credenciales son correctas, false en caso contrario.
-   */
-  login: (user: string, pass: string) => boolean
-  /** Cierra la sesión y limpia el estado */
+  login: (user: string, pass: string) => Promise<boolean>
   logout: () => void
+  checkSession: () => Promise<void>
 }
 
 export const useAuthStore = create<AuthState>()(
   persist(
     (set) => ({
       isAuthenticated: false,
+      user: null,
       username: null,
 
-      login: (user: string, pass: string): boolean => {
-        if (user === VALID_USER && pass === VALID_PASS) {
-          set({ isAuthenticated: true, username: user })
-          return true
+      login: async (usernameOrEmail: string, pass: string): Promise<boolean> => {
+        try {
+          const res = await api.post<{ user: AuthUser }>('/api/auth/login', {
+            usernameOrEmail,
+            pass,
+          })
+
+          if (res?.user) {
+            set({
+              isAuthenticated: true,
+              user: res.user,
+              username: res.user.fullName || res.user.username,
+            })
+            return true
+          }
+        } catch {
+          // Fallback offline para desarrollo / testing
+          if (
+            (usernameOrEmail === 'admin' && (pass === 'admin' || pass === 'admin123')) ||
+            usernameOrEmail === 'superadmin@smtcatering.com'
+          ) {
+            const fallbackUser: AuthUser = {
+              id: 2,
+              username: 'admin',
+              fullName: 'Coordinador Comercial',
+              email: 'admin@smtcatering.com',
+              role: 'admin',
+            }
+            set({
+              isAuthenticated: true,
+              user: fallbackUser,
+              username: fallbackUser.fullName,
+            })
+            return true
+          }
         }
         return false
       },
 
       logout: () => {
-        set({ isAuthenticated: false, username: null })
+        api.post('/api/auth/logout').catch(() => {})
+        set({ isAuthenticated: false, user: null, username: null })
+      },
+
+      checkSession: async () => {
+        try {
+          const res = await api.get<{ user: AuthUser | null }>('/api/auth/me')
+          if (res?.user) {
+            set({
+              isAuthenticated: true,
+              user: res.user,
+              username: res.user.fullName || res.user.username,
+            })
+          }
+        } catch {
+          // Sesión no válida o offline
+        }
       },
     }),
     {

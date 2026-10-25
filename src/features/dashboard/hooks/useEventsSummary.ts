@@ -1,10 +1,21 @@
+import { useEffect } from 'react'
 import { useEventStore } from '@/stores/eventStore'
 import type { EventRecord } from '@/types/domain'
 
-/** Mock Data Store reactivo (AGENTS.md): estado centralizado con Zustand. */
+/** Hook centralizado para consumir eventos del backend con Zustand. */
 export function useEvents(): { data: EventRecord[]; isLoading: boolean } {
   const events = useEventStore((s) => s.events)
-  return { data: events, isLoading: false }
+  const isLoading = useEventStore((s) => s.isLoading)
+  const isLoaded = useEventStore((s) => s.isLoaded)
+  const fetchEvents = useEventStore((s) => s.fetchEvents)
+
+  useEffect(() => {
+    if (!isLoaded) {
+      fetchEvents()
+    }
+  }, [isLoaded, fetchEvents])
+
+  return { data: events, isLoading }
 }
 
 export interface EventsSummary {

@@ -1,27 +1,77 @@
-/** Reglas de negocio invariantes (AGENTS.md). No cambiar sin confirmación de negocio. */
+/** Reglas de negocio invariantes (AGENTS.md y MER_v3). */
 
-export const GUEST_MIN = 50
-export const GUEST_MAX = 120
+// Comensales
+export const COMENSALES_MIN = 50
+export const COMENSALES_MAX = 120
+export const GUEST_MIN = COMENSALES_MIN
+export const GUEST_MAX = COMENSALES_MAX
 
-/** Seña 40% / Saldo 60%. */
-export const DEPOSIT_PERCENT = 40
-export const BALANCE_PERCENT = 60
+// Porcentajes de pago: Seña 40% / Saldo 60%
+export const PORCENTAJE_SENA = 40
+export const PORCENTAJE_SALDO = 60
+export const DEPOSIT_PERCENT = PORCENTAJE_SENA
+export const BALANCE_PERCENT = PORCENTAJE_SALDO
 
-/** Comandas se generan con 30 días de anticipación. */
-export const PRODUCTION_WINDOW_DAYS = 30
+// Tiempos y ventanas
+export const VENTANA_PRODUCCION_DIAS = 30
+export const PRODUCTION_WINDOW_DAYS = VENTANA_PRODUCCION_DIAS
 
-/** Antelación mínima requerida para reservar un evento (30 días). */
-export const MIN_BOOKING_DAYS_ADVANCE = 30
+export const ANTELACION_MINIMA_DIAS = 30
+export const MIN_BOOKING_DAYS_ADVANCE = ANTELACION_MINIMA_DIAS
 
-/** Aviso de saldo pendiente 7 días antes del evento. */
-export const BALANCE_NOTICE_DAYS = 7
+export const AVISO_SALDO_DIAS = 7
+export const BALANCE_NOTICE_DAYS = AVISO_SALDO_DIAS
 
-export const STATIONS = [
-  { id: 'entradas', name: 'Entradas' },
-  { id: 'pastas', name: 'Pastas' },
-  { id: 'parrilla', name: 'Parrilla' },
-  { id: 'asiatica', name: 'Cocina Asiática' },
-  { id: 'dulce', name: 'Estación Dulce' },
+// Estaciones gastronómicas
+export const ESTACIONES = [
+  { id: 'entradas', nombre: 'Entradas', name: 'Entradas' },
+  { id: 'pastas', nombre: 'Pastas', name: 'Pastas' },
+  { id: 'parrilla', nombre: 'Parrilla', name: 'Parrilla' },
+  { id: 'asiatica', nombre: 'Cocina Asiática', name: 'Cocina Asiática' },
+  { id: 'dulce', nombre: 'Estación Dulce', name: 'Estación Dulce' },
 ] as const
 
-export type StationId = (typeof STATIONS)[number]['id']
+export type EstacionId = (typeof ESTACIONES)[number]['id']
+
+// Alias en inglés para compatibilidad gradual
+export const STATIONS = ESTACIONES
+export type StationId = EstacionId
+
+export interface InfoEstacion {
+  id: EstacionId
+  nombre: string
+  descripcion: string
+  precioPorComensalCentavos: number
+}
+
+// Catálogo oficial de estaciones culinarias
+export const ESTACIONES_GASTRONOMICAS: InfoEstacion[] = [
+  { id: 'entradas', nombre: 'Entradas', precioPorComensalCentavos: 350000, descripcion: 'Tabla de fiambres, bruschettas y verrinas' },
+  { id: 'pastas', nombre: 'Pastas', precioPorComensalCentavos: 520000, descripcion: 'Ravioles de ricota, ñoquis de papa y salsa a elección' },
+  { id: 'parrilla', nombre: 'Parrilla', precioPorComensalCentavos: 610000, descripcion: 'Bife de chorizo, cordero y verduras asadas' },
+  { id: 'asiatica', nombre: 'Cocina Asiática', precioPorComensalCentavos: 570000, descripcion: 'Rollitos, wok de vegetales y arroz jazmín' },
+  { id: 'dulce', nombre: 'Estación Dulce', precioPorComensalCentavos: 280000, descripcion: 'Petit fours, flan y mini madalenas' },
+]
+
+export function obtenerEstacionPorId(id: EstacionId): InfoEstacion {
+  const found = ESTACIONES_GASTRONOMICAS.find((s) => s.id === id)
+  if (!found) {
+    return { id, nombre: id, descripcion: '', precioPorComensalCentavos: 0 }
+  }
+  return found
+}
+
+// Aliases en camelCase / inglés para compatibilidad
+export const GASTRONOMIC_STATIONS = ESTACIONES_GASTRONOMICAS
+export const stationById = (id: EstacionId) => {
+  const s = obtenerEstacionPorId(id)
+  return {
+    ...s,
+    name: s.nombre,
+    description: s.descripcion,
+    pricePerGuestCents: s.precioPorComensalCentavos,
+  }
+}
+export type StationInfo = InfoEstacion
+
+

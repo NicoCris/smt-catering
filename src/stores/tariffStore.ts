@@ -1,5 +1,6 @@
 import { create } from 'zustand'
 
+import { api } from '@/lib/api'
 import { mockTariffs } from '@/lib/mock-data'
 import { applyPercent } from '@/lib/utils'
 import type { Tariff, TariffChange } from '@/types/domain'
@@ -7,6 +8,9 @@ import type { Tariff, TariffChange } from '@/types/domain'
 interface TariffManagerState {
   tariffs: Tariff[]
   history: TariffChange[]
+  isLoading: boolean
+  isLoaded: boolean
+  fetchTariffs: () => Promise<void>
   /** Aplica el incremento porcentual en memoria (para vista previa, sin confirmar). */
   previewIncrease: (percent: number) => Tariff[]
   /** Confirma la vista previa: persiste tarifas + registra en historial. */
@@ -18,12 +22,28 @@ interface TariffManagerState {
 export const useTariffStore = create<TariffManagerState>()((set, get) => ({
   tariffs: mockTariffs,
   history: [],
+  isLoading: false,
+  isLoaded: false,
+
+  fetchTariffs: async () => {
+    set({ isLoading: true })
+    try {
+      const res = await api.get<{ tariffs: Tariff[] }>('/api/tariffs')
+      if (res && Array.isArray(res.tariffs)) {
+        set({ tariffs: res.tariffs, isLoading: false, isLoaded: true })
+      }
+    } catch {
+      set({ isLoading: false })
+    }
+  },
+
   previewIncrease: (percent) =>
     get().tariffs.map((t) => ({
       ...t,
       pricePerGuestCents: applyPercent(t.pricePerGuestCents, percent),
     })),
-  commitIncrease: (percent, preview) =>
+
+  commitIncrease: (percent, preview) => {
     set((s) => ({
       tariffs: preview,
       history: [
@@ -36,38 +56,50 @@ export const useTariffStore = create<TariffManagerState>()((set, get) => ({
         },
         ...s.history,
       ],
-    })),
-  updateTariff: (id, pricePerGuestCents) =>
-    set((s) => {
-      const current = s.tariffs.find((t) => t.id === id)
-      if (!current || current.pricePerGuestCents === pricePerGuestCents) {
-        return s
-      }
-      const diffPercent =
-        current.pricePerGuestCents > 0
-          ? Math.round(
-              ((pricePerGuestCents - current.pricePerGuestCents) /
-                current.pricePerGuestCents) *
-                100,
-            )
-          : 0
+    }))
 
-      const newChange: TariffChange = {
-        id: crypto.randomUUID(),
-        appliedAt: new Date().toISOString(),
-        percent: diffPercent,
-        tariffCount: 1,
-        type: 'individual',
-        tariffLabel: current.label,
-        previousPriceCents: current.pricePerGuestCents,
-        newPriceCents: pricePerGuestCents,
-      }
+    // Persistir lote en SQLite vía API
+    api.post('/api/tariffs/bulk', { tariffs: preview }).catch((err) => {
+      console.warn('No se pudo persistir el lote de tarifas en la API:', err)
+    })
+  },
 
-      return {
-        tariffs: s.tariffs.map((t) => (t.id === id ? { ...t, pricePerGuestCents } : t)),
-        history: [newChange, ...s.history],
-      }
-    }),
+  updateTariff: (id, pricePerGuestCents) => {
+    const current = get().tariffs.find((t) => t.id === id)
+    if (!current || current.pricePerGuestCents === pricePerGuestCents) {
+      return
+    }
+
+    const diffPercent =
+      current.pricePerGuestCents > 0
+        ? Math.round(
+            ((pricePerGuestCents - current.pricePerGuestCents) /
+              current.pricePerGuestCents) *
+              100,
+          )
+        : 0
+
+    const newChange: TariffChange = {
+      id: crypto.randomUUID(),
+      appliedAt: new Date().toISOString(),
+      percent: diffPercent,
+      tariffCount: 1,
+      type: 'individual',
+      tariffLabel: current.label,
+      previousPriceCents: current.pricePerGuestCents,
+      newPriceCents: pricePerGuestCents,
+    }
+
+    set((s) => ({
+      tariffs: s.tariffs.map((t) => (t.id === id ? { ...t, pricePerGuestCents } : t)),
+      history: [newChange, ...s.history],
+    }))
+
+    // Persistir en SQLite vía API
+    api.put(`/api/tariffs/${id}`, { pricePerGuestCents }).catch((err) => {
+      console.warn(`No se pudo actualizar la tarifa ${id} en la API:`, err)
+    })
+  },
 }))
 
 /**

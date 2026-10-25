@@ -33,6 +33,7 @@ CREATE TABLE IF NOT EXISTS usuario_staff (
 -- 3. ESTACION / ISLA GASTRONOMICA
 CREATE TABLE IF NOT EXISTS estacion (
   id_estacion INTEGER PRIMARY KEY AUTOINCREMENT,
+  codigo VARCHAR(20) UNIQUE NOT NULL,
   nombre VARCHAR(50) NOT NULL,
   tipo_comida TEXT NOT NULL DEFAULT 'salado', -- salado / dulce
   descripcion VARCHAR(150),
@@ -51,6 +52,9 @@ CREATE TABLE IF NOT EXISTS reserva (
   direccion_evento VARCHAR(150) NOT NULL,
   distancia_km DECIMAL(4,2) CHECK(distancia_km <= 20.0),
   evento_cancelado INTEGER NOT NULL DEFAULT 0,  -- 0: Activo, 1: Cancelado
+  estado_evento TEXT NOT NULL DEFAULT 'Presupuestado',
+  estado_pago TEXT NOT NULL DEFAULT 'SEÑA_PENDIENTE',
+  notas_cocina TEXT DEFAULT '',
   monto_total DECIMAL(10,2) NOT NULL,
   monto_seguro DECIMAL(10,2) NOT NULL DEFAULT 0.00,
   fecha_creacion TIMESTAMP DEFAULT CURRENT_TIMESTAMP,

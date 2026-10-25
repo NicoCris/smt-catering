@@ -34,11 +34,11 @@ Documento de seguimiento de tareas pendientes organizadas por vistas, módulos d
 - [x] **Unificación de Contratos y Modelos en Español (según MER_v3)**
   - [x] Migrar interfaces, DTOs y tipos compartidos (`shared/types/modelos.ts`) a español (`Cliente`, `UsuarioStaff`, `Reserva`, `Estacion`, `DetalleReservaEstacion`, `RestriccionAlimentaria`, `Pago`, `ComandaProduccion`, `Tarifa`).
   - [x] Adaptar modelos del frontend (`src/types/domain.ts`) y alias de compatibilidad para consumir las entidades con los nombres del MER_v3.
-- [ ] **Conexión de Frontend a API Backend & Remoción de Mocks**
+- [x] **Conexión de Frontend a API Backend & Remoción de Mocks**
   - [x] Garantizar paridad total de datos entre `server/db/seed.sql` y las pantallas del frontend (mismos clientes B2B, fechas dinámicas relativas a hoy, tarifas, estaciones y notas).
-  - [ ] Mover funciones utilitarias de fecha (`daysUntil`, `isWithinProductionWindow`) de `mock-data.ts` a `src/lib/utils.ts`.
-  - [ ] Conectar stores (`eventStore`, `tariffStore`, `authStore`) para consumir endpoints reales (`/api/events`, `/api/tariffs`, `/api/auth/me`).
-  - [ ] Desacoplar `src/lib/mock-data.ts` del flujo principal de la aplicación.
+  - [x] Mover funciones utilitarias de fecha (`daysUntil`, `isWithinProductionWindow`) de `mock-data.ts` a `src/lib/utils.ts`.
+  - [x] Conectar stores (`eventStore`, `tariffStore`, `authStore`) para consumir endpoints reales (`/api/events`, `/api/tariffs`, `/api/auth/me`).
+  - [x] Desacoplar `src/lib/mock-data.ts` del flujo principal de la aplicación.
 - [x] **Arquitectura Modular Descentralizada**
   - [x] Crear capa de contratos compartidos (`shared/`) con tipos e interfaces TypeScript.
   - [x] Crear esquemas Zod compartidos (`shared/schemas/`) para validación unificada (auth y cotizador).

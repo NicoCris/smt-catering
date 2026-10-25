@@ -19,12 +19,12 @@ INSERT OR REPLACE INTO cliente (id_cliente, razon_social, cuit, nombre_completo,
   (6, 'Innova Digital Studio', '30-76543210-2', 'Lucía Rossi', 'Chief People Officer', 'lucia@innovastudio.com', '+54 11 4999-5566', 'Bonpland 1800, CABA', '2020-03-01', '$2b$10$EpRnTzVlqHNP0.fUbXUwSOyuiXe/QLSUG6x8ecgy5pLJQlnNRUxoi');
 
 -- 3. ESTACIONES GASTRONOMICAS
-INSERT OR REPLACE INTO estacion (id_estacion, nombre, tipo_comida, descripcion, precio_por_persona) VALUES
-  (1, 'Entradas', 'salado', 'Tabla de fiambres, bruschettas y verrinas', 3500.00),
-  (2, 'Pastas', 'salado', 'Ravioles de ricota, ñoquis de papa y salsa a elección', 5200.00),
-  (3, 'Parrilla', 'salado', 'Bife de chorizo, cordero y verduras asadas', 6100.00),
-  (4, 'Cocina Asiática', 'salado', 'Rollitos, wok de vegetales y arroz jazmín', 5700.00),
-  (5, 'Estación Dulce', 'dulce', 'Petit fours, flan y mini madalenas', 2800.00);
+INSERT OR REPLACE INTO estacion (id_estacion, codigo, nombre, tipo_comida, descripcion, precio_por_persona) VALUES
+  (1, 'entradas', 'Entradas', 'salado', 'Tabla de fiambres, bruschettas y verrinas', 3500.00),
+  (2, 'pastas', 'Pastas', 'salado', 'Ravioles de ricota, ñoquis de papa y salsa a elección', 5200.00),
+  (3, 'parrilla', 'Parrilla', 'salado', 'Bife de chorizo, cordero y verduras asadas', 6100.00),
+  (4, 'asiatica', 'Cocina Asiática', 'salado', 'Rollitos, wok de vegetales y arroz jazmín', 5700.00),
+  (5, 'dulce', 'Estación Dulce', 'dulce', 'Petit fours, flan y mini madalenas', 2800.00);
 
 -- 4. TARIFAS BASE, ESTACIONES Y SEGURO (En centavos para el cotizador)
 INSERT OR REPLACE INTO tarifas (id, label, category, price_per_guest_cents, fixed_cents, is_active) VALUES
@@ -34,6 +34,8 @@ INSERT OR REPLACE INTO tarifas (id, label, category, price_per_guest_cents, fixe
   ('parrilla', 'Parrilla', 'station', 610000, 0, 1),
   ('asiatica', 'Cocina Asiática', 'station', 570000, 0, 1),
   ('dulce', 'Estación Dulce', 'station', 280000, 0, 1),
+  ('extra-manteleria', 'Mantelería premium', 'extra', 90000, 0, 1),
+  ('extra-barra', 'Barra de tragos', 'extra', 250000, 0, 1),
   ('tar-seguro', 'Seguro de Evento y Responsabilidad Civil', 'insurance', 0, 4500000, 1);
 
 -- 5. RESERVAS CON FECHAS DINÁMICAS (Usa date('now', '±X days') para estar siempre en la ventana correcta)
@@ -42,10 +44,12 @@ INSERT OR REPLACE INTO tarifas (id, label, category, price_per_guest_cents, fixe
 INSERT OR REPLACE INTO reserva (
   id_reserva, id_cliente, fecha_evento, hora_inicio, hora_fin, duracion_horas,
   cantidad_invitados, direccion_evento, distancia_km, evento_cancelado,
+  estado_evento, estado_pago, notas_cocina,
   monto_total, monto_seguro, fecha_creacion, actualizado_por
 ) VALUES (
   1041, 1, date('now', '+12 days'), '19:30', '22:30', 3.0,
   90, 'Pasteur 4600, CABA', 8.50, 0,
+  'Señado / Confirmado', 'SEÑA_ABONADA', 'Salsa sin glutamato monosódico para la mesa 6.',
   1188000.00, 45000.00, datetime('now', '-30 days'), 'admin'
 );
 
@@ -53,10 +57,12 @@ INSERT OR REPLACE INTO reserva (
 INSERT OR REPLACE INTO reserva (
   id_reserva, id_cliente, fecha_evento, hora_inicio, hora_fin, duracion_horas,
   cantidad_invitados, direccion_evento, distancia_km, evento_cancelado,
+  estado_evento, estado_pago, notas_cocina,
   monto_total, monto_seguro, fecha_creacion, actualizado_por
 ) VALUES (
   1042, 2, date('now', '+25 days'), '20:00', '23:00', 3.0,
   120, 'Av. Eduardo Madero 1180, CABA', 11.20, 0,
+  'En Producción', 'SALDO_PENDIENTE', 'Confirmar logística de carga por Parque Industrial.',
   1596000.00, 45000.00, datetime('now', '-20 days'), 'admin'
 );
 
@@ -64,10 +70,12 @@ INSERT OR REPLACE INTO reserva (
 INSERT OR REPLACE INTO reserva (
   id_reserva, id_cliente, fecha_evento, hora_inicio, hora_fin, duracion_horas,
   cantidad_invitados, direccion_evento, distancia_km, evento_cancelado,
+  estado_evento, estado_pago, notas_cocina,
   monto_total, monto_seguro, fecha_creacion, actualizado_por
 ) VALUES (
   1043, 3, date('now', '+5 days'), '19:00', '22:00', 3.0,
   60, 'Humboldt 1550, CABA', 5.00, 0,
+  'Señado / Confirmado', 'SEÑA_PENDIENTE', 'Evento con proyección: requiere toma de corriente cerca del buffet.',
   738000.00, 45000.00, datetime('now', '-15 days'), 'admin'
 );
 
@@ -75,10 +83,12 @@ INSERT OR REPLACE INTO reserva (
 INSERT OR REPLACE INTO reserva (
   id_reserva, id_cliente, fecha_evento, hora_inicio, hora_fin, duracion_horas,
   cantidad_invitados, direccion_evento, distancia_km, evento_cancelado,
+  estado_evento, estado_pago, notas_cocina,
   monto_total, monto_seguro, fecha_creacion, actualizado_por
 ) VALUES (
   1044, 4, date('now', '+48 days'), '20:00', '23:00', 3.0,
   100, 'Santa Fe 2830, CABA', 7.50, 0,
+  'Presupuestado', 'SEÑA_PENDIENTE', '',
   1430000.00, 45000.00, datetime('now', '-2 days'), 'admin'
 );
 
@@ -86,10 +96,12 @@ INSERT OR REPLACE INTO reserva (
 INSERT OR REPLACE INTO reserva (
   id_reserva, id_cliente, fecha_evento, hora_inicio, hora_fin, duracion_horas,
   cantidad_invitados, direccion_evento, distancia_km, evento_cancelado,
+  estado_evento, estado_pago, notas_cocina,
   monto_total, monto_seguro, fecha_creacion, actualizado_por
 ) VALUES (
   1039, 5, date('now', '-10 days'), '19:30', '22:30', 3.0,
   80, 'Av. Leandro N. Alem 855, CABA', 9.00, 0,
+  'Completado', 'TOTALMENTE_SALDADO', '',
   1024000.00, 45000.00, datetime('now', '-45 days'), 'admin'
 );
 
@@ -97,10 +109,12 @@ INSERT OR REPLACE INTO reserva (
 INSERT OR REPLACE INTO reserva (
   id_reserva, id_cliente, fecha_evento, hora_inicio, hora_fin, duracion_horas,
   cantidad_invitados, direccion_evento, distancia_km, evento_cancelado,
+  estado_evento, estado_pago, notas_cocina,
   monto_total, monto_seguro, fecha_creacion, actualizado_por
 ) VALUES (
   1045, 6, date('now', '+5 days'), '20:30', '23:30', 3.0,
   55, 'Bonpland 1800, CABA', 6.00, 0,
+  'Señado / Confirmado', 'SEÑA_ABONADA', 'Evento concurrente con EV-1043.',
   687500.00, 45000.00, datetime('now', '-10 days'), 'admin'
 );
 
