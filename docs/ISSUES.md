@@ -6,9 +6,9 @@ Documento de seguimiento de tareas pendientes organizadas por vistas, módulos d
 
 ## 1. Backend, Infraestructura & Base de Datos
 
-- [ ] **Modelado de Base de Datos (según Google Drive)**
-  - [ ] Contrastar y ajustar la estructura de tablas, campos y relaciones de `server/db/schema.sql` según el modelo de datos definido en Google Drive.
-  - [ ] Diseñar script con set de datos de prueba / smoke data (`server/db/seed.sql` o script dedicado) con casos realistas: múltiples eventos con fechas pasadas/futuras, eventos concurrentes de $\le 60$ comensales, variedad de restricciones y estados de pago.
+- [x] **Modelado de Base de Datos (según Google Drive / MER_v3)**
+  - [x] Contrastar y ajustar la estructura de tablas, campos y relaciones de `server/db/schema.sql` según el modelo de datos definido en `docs/MER_v3.xml`.
+  - [x] Diseñar script con set de datos de prueba / smoke data (`server/db/seed.sql`) con casos realistas: eventos pasados saldados, eventos futuros señados, eventos concurrentes de $\le 60$ comensales, eventos cancelados, variedad de restricciones alimentarias normalizadas y estados de pago.
   - [x] Configurar base de datos inicial SQLite local (`server/db/smt.sqlite`) sin dependencias externas usando `node:sqlite` nativo.
   - [x] Implementar script de reinicio instantáneo `npm run db:reset` (`server/db/reset.mjs`) para sincronizar al equipo sin conflictos de migraciones.
   - [x] Configurar exclusión en `.gitignore` para no subir archivos binarios `.sqlite` a Git.

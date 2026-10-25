@@ -31,7 +31,7 @@ const server = createServer((req, res) => {
   if (url.pathname === '/api/tariffs') {
     try {
       const db = getDatabase()
-      const tariffs = db.prepare('SELECT * FROM tariffs WHERE is_active = 1').all()
+      const tariffs = db.prepare('SELECT * FROM tarifas WHERE is_active = 1').all()
       res.writeHead(200)
       res.end(JSON.stringify({ tariffs }))
     } catch (err: any) {
@@ -44,7 +44,14 @@ const server = createServer((req, res) => {
   if (url.pathname === '/api/events') {
     try {
       const db = getDatabase()
-      const events = db.prepare('SELECT * FROM events ORDER BY event_date ASC').all()
+      const events = db
+        .prepare(
+          `SELECT r.*, c.razon_social as cliente_empresa, c.nombre_completo as contacto
+           FROM reserva r
+           JOIN cliente c ON c.id_cliente = r.id_cliente
+           ORDER BY r.fecha_evento ASC`,
+        )
+        .all()
       res.writeHead(200)
       res.end(JSON.stringify({ events }))
     } catch (err: any) {
