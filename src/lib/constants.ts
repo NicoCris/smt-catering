@@ -16,7 +16,7 @@ export const BALANCE_PERCENT = PORCENTAJE_SALDO
 export const VENTANA_PRODUCCION_DIAS = 30
 export const PRODUCTION_WINDOW_DAYS = VENTANA_PRODUCCION_DIAS
 
-export const ANTELACION_MINIMA_DIAS = 30
+export const ANTELACION_MINIMA_DIAS = 14
 export const MIN_BOOKING_DAYS_ADVANCE = ANTELACION_MINIMA_DIAS
 
 export const AVISO_SALDO_DIAS = 7
@@ -73,5 +73,3 @@ export const stationById = (id: EstacionId) => {
   }
 }
 export type StationInfo = InfoEstacion
-
-
