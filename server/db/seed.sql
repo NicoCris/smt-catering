@@ -28,15 +28,13 @@ INSERT OR REPLACE INTO estacion (id_estacion, codigo, nombre, tipo_comida, descr
 
 -- 4. TARIFAS BASE, ESTACIONES Y SEGURO (En centavos para el cotizador)
 INSERT OR REPLACE INTO tarifas (id, label, category, price_per_guest_cents, fixed_cents, is_active) VALUES
-  ('base-cubierto', 'Cubierto base (servicio y logística)', 'base', 180000, 0, 1),
   ('entradas', 'Entradas', 'station', 350000, 0, 1),
   ('pastas', 'Pastas', 'station', 520000, 0, 1),
   ('parrilla', 'Parrilla', 'station', 610000, 0, 1),
   ('asiatica', 'Cocina Asiática', 'station', 570000, 0, 1),
   ('dulce', 'Estación Dulce', 'station', 280000, 0, 1),
-  ('extra-manteleria', 'Mantelería premium', 'extra', 90000, 0, 1),
   ('extra-barra', 'Barra de tragos', 'extra', 250000, 0, 1),
-  ('tar-seguro', 'Seguro de Evento y Responsabilidad Civil', 'insurance', 0, 4500000, 1);
+  ('tar-seguro', 'Seguro contra todo riesgo', 'insurance', 0, 8000000, 1);
 
 -- 5. RESERVAS CON FECHAS DINÁMICAS (Usa date('now', '±X days') para estar siempre en la ventana correcta)
 
@@ -50,7 +48,7 @@ INSERT OR REPLACE INTO reserva (
   1041, 1, date('now', '+12 days'), '19:30', '22:30', 3.0,
   90, 'Pasteur 4600, CABA', 8.50, 0,
   'Señado / Confirmado', 'SEÑA_ABONADA', 'Salsa sin glutamato monosódico para la mesa 6.',
-  1188000.00, 45000.00, datetime('now', '-30 days'), 'admin'
+  1188000.00, 80000.00, datetime('now', '-30 days'), 'admin'
 );
 
 -- EV-1042: Banco Macro (+25 días) -> En Producción / Saldo pendiente (<= 30 días)
@@ -63,7 +61,7 @@ INSERT OR REPLACE INTO reserva (
   1042, 2, date('now', '+25 days'), '20:00', '23:00', 3.0,
   120, 'Av. Eduardo Madero 1180, CABA', 11.20, 0,
   'En Producción', 'SALDO_PENDIENTE', 'Confirmar logística de carga por Parque Industrial.',
-  1596000.00, 45000.00, datetime('now', '-20 days'), 'admin'
+  1596000.00, 80000.00, datetime('now', '-20 days'), 'admin'
 );
 
 -- EV-1043: Estudio Lagom (+5 días) -> Seña pendiente / Urgente (<= 14 días)
@@ -76,7 +74,7 @@ INSERT OR REPLACE INTO reserva (
   1043, 3, date('now', '+5 days'), '19:00', '22:00', 3.0,
   60, 'Humboldt 1550, CABA', 5.00, 0,
   'Señado / Confirmado', 'SEÑA_PENDIENTE', 'Evento con proyección: requiere toma de corriente cerca del buffet.',
-  738000.00, 45000.00, datetime('now', '-15 days'), 'admin'
+  738000.00, 80000.00, datetime('now', '-15 days'), 'admin'
 );
 
 -- EV-1044: Farmacity (+48 días) -> Presupuestado / Fuera de ventana de producción (> 30 días)
@@ -89,7 +87,7 @@ INSERT OR REPLACE INTO reserva (
   1044, 4, date('now', '+48 days'), '20:00', '23:00', 3.0,
   100, 'Santa Fe 2830, CABA', 7.50, 0,
   'Presupuestado', 'SEÑA_PENDIENTE', '',
-  1430000.00, 45000.00, datetime('now', '-2 days'), 'admin'
+  1430000.00, 80000.00, datetime('now', '-2 days'), 'admin'
 );
 
 -- EV-1039: MetLife (-10 días) -> Histórico / Pasado / Completado
@@ -102,7 +100,7 @@ INSERT OR REPLACE INTO reserva (
   1039, 5, date('now', '-10 days'), '19:30', '22:30', 3.0,
   80, 'Av. Leandro N. Alem 855, CABA', 9.00, 0,
   'Completado', 'TOTALMENTE_SALDADO', '',
-  1024000.00, 45000.00, datetime('now', '-45 days'), 'admin'
+  1024000.00, 80000.00, datetime('now', '-45 days'), 'admin'
 );
 
 -- EV-1045: Innova Digital Studio (+5 días) -> Concurrente en misma fecha con Estudio Lagom (60 y 55 pax <= 60)
@@ -115,7 +113,7 @@ INSERT OR REPLACE INTO reserva (
   1045, 6, date('now', '+5 days'), '20:30', '23:30', 3.0,
   55, 'Bonpland 1800, CABA', 6.00, 0,
   'Señado / Confirmado', 'SEÑA_ABONADA', 'Evento concurrente con EV-1043.',
-  687500.00, 45000.00, datetime('now', '-10 days'), 'admin'
+  687500.00, 80000.00, datetime('now', '-10 days'), 'admin'
 );
 
 -- 6. ESTACIONES CONTRATADAS POR RESERVA
@@ -181,13 +179,13 @@ INSERT OR REPLACE INTO restriccion_alimentaria (id_restriccion, id_reserva, tipo
   (18, 1039, 'Veganos', 1, 'Menú vegano');
 
 -- 8. PAGOS
--- EV-1041: Seña abonada (40% de 1188000 = 475200)
+-- EV-1041: Seña abonada (50% de 1188000 = 475200)
 INSERT OR REPLACE INTO pago (id_pago, id_reserva, tipo_pago, monto, pago_online, pago_completo, estado) VALUES
   (1, 1041, 'SEÑA', 475200.00, 1, 0, 'confirmado');
 
--- EV-1042: Seña abonada (40% de 1596000 = 638400, saldo pendiente)
+-- EV-1042: Seña abonada (50% de 1596000 = 798000, saldo pendiente)
 INSERT OR REPLACE INTO pago (id_pago, id_reserva, tipo_pago, monto, pago_online, pago_completo, estado) VALUES
-  (2, 1042, 'SEÑA', 638400.00, 1, 0, 'confirmado');
+  (2, 1042, 'SEÑA', 798000.00, 1, 0, 'confirmado');
 
 -- EV-1039: Totalmente saldado (Seña + Saldo)
 INSERT OR REPLACE INTO pago (id_pago, id_reserva, tipo_pago, monto, pago_online, pago_completo, estado) VALUES

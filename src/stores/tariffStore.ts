@@ -16,6 +16,8 @@ interface TariffManagerState {
   commitIncrease: (percent: number, preview: Tariff[]) => void
   /** Edición manual de una tarifa puntual. */
   updateTariff: (id: string, pricePerGuestCents: number) => void
+  /** Edición del monto fijo por evento (ej. Seguro), en centavos. */
+  updateFixedCents: (id: string, fixedCents: number) => void
 }
 
 export const useTariffStore = create<TariffManagerState>()((set, get) => ({
@@ -98,6 +100,21 @@ export const useTariffStore = create<TariffManagerState>()((set, get) => ({
     api.put(`/api/tariffs/${id}`, { pricePerGuestCents }).catch((err) => {
       console.warn(`No se pudo actualizar la tarifa ${id} en la API:`, err)
     })
+  },
+
+  updateFixedCents: (id, fixedCents) => {
+    const current = get().tariffs.find((t) => t.id === id)
+    if (!current || (current.fixedCents ?? 0) === fixedCents) return
+
+    set((s) => ({
+      tariffs: s.tariffs.map((t) => (t.id === id ? { ...t, fixedCents } : t)),
+    }))
+
+    api
+      .put(`/api/tariffs/${id}`, { pricePerGuestCents: current.pricePerGuestCents, fixedCents })
+      .catch((err) => {
+        console.warn(`No se pudo actualizar la tarifa ${id} en la API:`, err)
+      })
   },
 }))
 

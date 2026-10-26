@@ -95,7 +95,7 @@ Documento de seguimiento de tareas pendientes organizadas por vistas, módulos d
 - [ ] **Selector de Islas / Estaciones**
   - [ ] Incorporar imágenes ilustrativas de alta calidad para cada una de las estaciones gastronómicas.
 - [ ] **Adicionales**
-  - [ ] Eliminar la opción "Mantelería" de los ítems adicionales disponibles.
+  - [X ] Eliminar la opción "Mantelería" de los ítems adicionales disponibles.
 - [ ] **Restricciones Alimentarias**
   - [x] Tipado de modelo para "Otros" con detalle y cantidad (`shared/types/events.ts`).
   - [ ] Revisar y agregar restricciones faltantes en la matriz UI.
@@ -164,11 +164,11 @@ Documento de seguimiento de tareas pendientes organizadas por vistas, módulos d
 
 - [ ] **Ajuste de Catálogo de Tarifas**
   - [x] Cargar en base de datos (`server/db/seed.sql`) la tarifa de "Seguro" y excluir cubiertos y mantelería.
-  - [ ] Eliminar de la UI de tarifas los ítems: "Cubiertos" y "Mantelería".
-  - [ ] Visualizar la tarifa correspondiente a "Seguro".
+  - [X] Eliminar de la UI de tarifas los ítems: "Cubiertos" y "Mantelería".
+  - [X] Visualizar la tarifa correspondiente a "Seguro".
   - [ ] Evaluar y remover la columna "Tipo" si no se utiliza operativamente.
 - [ ] **Simplificación de UI**
-  - [ ] Eliminar el panel o sección de historial de cambios de tarifas.
+  - [X] Eliminar el panel o sección de historial de cambios de tarifas.
 
 ---
 

@@ -6,9 +6,9 @@ export const COMENSALES_MAX = 120
 export const GUEST_MIN = COMENSALES_MIN
 export const GUEST_MAX = COMENSALES_MAX
 
-// Porcentajes de pago: Seña 40% / Saldo 60%
-export const PORCENTAJE_SENA = 40
-export const PORCENTAJE_SALDO = 60
+// Porcentajes de pago: Seña 50% / Saldo 50%
+export const PORCENTAJE_SENA = 50
+export const PORCENTAJE_SALDO = 50
 export const DEPOSIT_PERCENT = PORCENTAJE_SENA
 export const BALANCE_PERCENT = PORCENTAJE_SALDO
 
