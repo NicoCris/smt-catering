@@ -7,7 +7,7 @@ import { useNavigate } from 'react-router-dom'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { MIN_BOOKING_DAYS_ADVANCE } from '@/lib/constants'
+import { DEPOSIT_PERCENT, MIN_BOOKING_DAYS_ADVANCE } from '@/lib/constants'
 import { useQuotationCalculator } from '@/features/quotation/hooks/useQuotationCalculator'
 import { formatCurrency } from '@/lib/utils'
 import { useEventStore } from '@/stores/eventStore'
@@ -26,7 +26,7 @@ export function ConfirmEventModal({ open, onOpenChange }: Props) {
   const stationIds = useQuotationStore((s) => s.stationIds)
   const dietary = useQuotationStore((s) => s.dietary)
   const resetQuotation = useQuotationStore((s) => s.reset)
-  const { totalCents, depositCents } = useQuotationCalculator()
+  const { totalCents, depositCents, insuranceCents } = useQuotationCalculator()
   const addEvent = useEventStore((s) => s.addEvent)
 
   const [clientName, setClientName] = useState('')
@@ -52,6 +52,7 @@ export function ConfirmEventModal({ open, onOpenChange }: Props) {
       paymentStatus,
       totalCents,
       depositCents: paymentStatus === 'SEÑA_ABONADA' ? depositCents : 0,
+      insuranceCents,
       dietary,
       kitchenNotes: kitchenNotes.trim(),
     })
@@ -94,7 +95,7 @@ export function ConfirmEventModal({ open, onOpenChange }: Props) {
                 <div className="flex justify-between"><span>Fecha:</span> <strong className="text-ink">{eventDate ?? 'Sin fecha'}</strong></div>
                 <div className="flex justify-between"><span>Comensales:</span> <strong className="text-ink tnum">{guests} pax</strong></div>
                 <div className="flex justify-between"><span>Total:</span> <strong className="text-ink tnum">{formatCurrency(totalCents)}</strong></div>
-                <div className="flex justify-between border-t border-hairline pt-1 text-primary-deep"><span>Seña (40%):</span> <strong className="tnum">{formatCurrency(depositCents)}</strong></div>
+                <div className="flex justify-between border-t border-hairline pt-1 text-primary-deep"><span>Seña ({DEPOSIT_PERCENT}%):</span> <strong className="tnum">{formatCurrency(depositCents)}</strong></div>
               </div>
               {isTooSoon && <p className="mb-2 text-xs text-state-danger">Antelación mínima obligatoria: {MIN_BOOKING_DAYS_ADVANCE} días.</p>}
               <div className="space-y-3">
@@ -105,7 +106,7 @@ export function ConfirmEventModal({ open, onOpenChange }: Props) {
                 <div>
                   <Label htmlFor="paymentStatus" className="mb-1 block text-xs">Estado de la seña</Label>
                   <select id="paymentStatus" className="w-full rounded-md border border-hairline-input bg-canvas px-3 py-2 text-sm text-ink" value={paymentStatus} onChange={(e) => setPaymentStatus(e.target.value as PaymentStatus)}>
-                    <option value="SEÑA_ABONADA">Seña abonada (40% cobrada)</option>
+                    <option value="SEÑA_ABONADA">Seña abonada ({DEPOSIT_PERCENT}% cobrada)</option>
                     <option value="SEÑA_PENDIENTE">Seña pendiente de acreditación</option>
                   </select>
                 </div>
@@ -115,7 +116,7 @@ export function ConfirmEventModal({ open, onOpenChange }: Props) {
                 </div>
               </div>
               <div className="mt-5 flex justify-end gap-2">
-                <Button variant="ghost" onClick={handleClose}>Cancelar</Button>
+                <Button type="button" variant="ghost" onClick={handleClose}>Cancelar</Button>
                 <Button type="submit" variant="primary" disabled={!clientName.trim() || !eventDate || isTooSoon}>Confirmar y agendar</Button>
               </div>
             </form>

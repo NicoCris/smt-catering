@@ -8,16 +8,17 @@ import { useQuotationStore } from '@/stores/quotationStore'
  * Motor de cálculo financiero inmediato del Cotizador (AGENTS.md §Módulo 1).
  *
  * Invariantes de Negocio:
- * - Todos los importes monetarios se calculan en CENTAVOS ENTEROS (ARS) para eliminar errores de redondeo de punto flotante.
- * - Estructura de cobro de SMT Catering:
- *   - Seña = 40% del total (`DEPOSIT_PERCENT = 40`).
- *   - Saldo = 60% restante (`BALANCE_PERCENT = 60`).
- * - Validaciones en caliente:
- *   - `dietExceedsGuests`: Verifica que la suma de comensales con dietas no supere el total del evento.
- *   - `hasStations`: Valida que exista al menos una estación culinaria para emitir propuesta.
+ * - Todos los importes monetarios se calculan en CENTAVOS ENTEROS (ARS).
+ * - Total = (estaciones + extras) por comensal × comensales + Seguro.
+ * - El Seguro es un monto FIJO por evento: no depende de la cantidad de comensales.
+ * - Seña = `DEPOSIT_PERCENT` % del total (incluye el Seguro). Saldo = lo que resta del total.
  */
 export interface QuotationTotals {
   perGuestCents: number
+  /** Subtotal por comensales (sin Seguro). */
+  subtotalCents: number
+  /** Seguro: monto fijo por evento. */
+  insuranceCents: number
   totalCents: number
   depositCents: number
   balanceCents: number
@@ -37,18 +38,21 @@ export function useQuotationCalculator(): QuotationTotals {
     const priceOf = (id: string): number =>
       tariffs.find((t) => t.id === id)?.pricePerGuestCents ?? 0
 
-    const base = tariffs.find((t) => t.category === 'base')?.pricePerGuestCents ?? 0
     const stationsCents = stationIds.reduce((sum, id) => sum + priceOf(id), 0)
     const extrasCents = extraIds.reduce((sum, id) => sum + priceOf(id), 0)
+    const insuranceCents = tariffs.find((t) => t.category === 'insurance')?.fixedCents ?? 0
 
-    const perGuestCents = base + stationsCents + extrasCents
-    const totalCents = perGuestCents * guests
+    const perGuestCents = stationsCents + extrasCents
+    const subtotalCents = perGuestCents * guests
+    const totalCents = subtotalCents + insuranceCents
     const depositCents = Math.round((totalCents * DEPOSIT_PERCENT) / 100)
 
     const dietTotal = dietary.celiacos + dietary.vegetarianos + dietary.veganos
 
     return {
       perGuestCents,
+      subtotalCents,
+      insuranceCents,
       totalCents,
       depositCents,
       balanceCents: totalCents - depositCents,

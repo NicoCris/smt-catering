@@ -13,6 +13,7 @@ export interface TariffManager {
   confirmPreview: () => void
   cancelPreview: () => void
   updateTariff: (id: string, pricePerGuestCents: number) => void
+  updateFixedCents: (id: string, fixedCents: number) => void
 }
 
 /**
@@ -32,6 +33,7 @@ export function useTariffManager(): TariffManager {
   const previewIncrease = useTariffStore((s) => s.previewIncrease)
   const commitIncrease = useTariffStore((s) => s.commitIncrease)
   const updateTariff = useTariffStore((s) => s.updateTariff)
+  const updateFixedCents = useTariffStore((s) => s.updateFixedCents)
 
   useEffect(() => {
     if (!isLoaded) {
@@ -65,5 +67,6 @@ export function useTariffManager(): TariffManager {
     confirmPreview,
     cancelPreview,
     updateTariff,
+    updateFixedCents,
   }
 }

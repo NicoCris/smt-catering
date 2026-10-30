@@ -2,14 +2,15 @@ import { CalendarCheck, Check, ChevronUp, Share2 } from 'lucide-react'
 import { useState } from 'react'
 
 import { Button } from '@/components/ui/button'
-import { BALANCE_PERCENT, DEPOSIT_PERCENT } from '@/lib/constants'
+import { DEPOSIT_PERCENT } from '@/lib/constants'
 import { ConfirmEventModal } from '@/features/quotation/components/ConfirmEventModal'
 import { useQuotationCalculator } from '@/features/quotation/hooks/useQuotationCalculator'
 import { cn, formatCurrency } from '@/lib/utils'
 import { useQuotationStore } from '@/stores/quotationStore'
 
 function Rows() {
-  const { perGuestCents, totalCents, depositCents, balanceCents } = useQuotationCalculator()
+  const { perGuestCents, subtotalCents, insuranceCents, totalCents, depositCents, balanceCents } =
+    useQuotationCalculator()
   const guests = useQuotationStore((s) => s.guests)
   const eventDate = useQuotationStore((s) => s.eventDate)
 
@@ -29,14 +30,26 @@ function Rows() {
         <dt>
           Subtotal <span className="text-ink-mute tnum">({guests} pax)</span>
         </dt>
+        <dd className="tnum">{formatCurrency(subtotalCents)}</dd>
+      </div>
+      {insuranceCents > 0 && (
+        <div className="flex justify-between text-ink-secondary">
+          <dt>
+            Seguro <span className="text-ink-mute"></span>
+          </dt>
+          <dd className="tnum">{formatCurrency(insuranceCents)}</dd>
+        </div>
+      )}
+      <div className="flex justify-between border-t border-hairline pt-2.5 font-normal text-ink">
+        <dt>Total</dt>
         <dd className="tnum">{formatCurrency(totalCents)}</dd>
       </div>
-      <div className="flex justify-between border-t border-hairline pt-2.5 text-primary-deep">
+      <div className="flex justify-between text-primary-deep">
         <dt>Seña ({DEPOSIT_PERCENT}%) — congela fecha y tarifa</dt>
         <dd className="font-normal tnum">{formatCurrency(depositCents)}</dd>
       </div>
       <div className="flex justify-between font-normal text-ink">
-        <dt>Saldo restante ({BALANCE_PERCENT}%)</dt>
+        <dt>Saldo restante ({100 - DEPOSIT_PERCENT}%)</dt>
         <dd className="tnum">{formatCurrency(balanceCents)}</dd>
       </div>
     </dl>
@@ -47,7 +60,8 @@ function useShareSummary(): { share: () => void; copied: boolean } {
   const [copied, setCopied] = useState(false)
   const guests = useQuotationStore((s) => s.guests)
   const eventDate = useQuotationStore((s) => s.eventDate)
-  const { totalCents, depositCents, balanceCents, perGuestCents } = useQuotationCalculator()
+  const { perGuestCents, subtotalCents, insuranceCents, totalCents, depositCents, balanceCents } =
+    useQuotationCalculator()
 
   const share = (): void => {
     const text = [
@@ -55,9 +69,11 @@ function useShareSummary(): { share: () => void; copied: boolean } {
       ...(eventDate ? [`Fecha: ${eventDate}`] : []),
       `Comensales: ${guests}`,
       `Costo por comensal: ${formatCurrency(perGuestCents)}`,
+      `Subtotal: ${formatCurrency(subtotalCents)}`,
+      ...(insuranceCents > 0 ? [`Seguro del evento: ${formatCurrency(insuranceCents)}`] : []),
       `Total: ${formatCurrency(totalCents)}`,
-      `Seña (40%): ${formatCurrency(depositCents)}`,
-      `Saldo (60%): ${formatCurrency(balanceCents)}`,
+      `Seña (${DEPOSIT_PERCENT}%): ${formatCurrency(depositCents)}`,
+      `Saldo (${100 - DEPOSIT_PERCENT}%): ${formatCurrency(balanceCents)}`,
     ].join('\n')
     void navigator.clipboard?.writeText(text).then(() => {
       setCopied(true)

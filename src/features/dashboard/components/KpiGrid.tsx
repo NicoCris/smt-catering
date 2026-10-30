@@ -27,8 +27,8 @@ function formatKpi(key: keyof EventsSummary, value: number): string {
  * Métricas calculadas:
  * 1. Eventos del mes: Conteo de eventos fechados en el mes en curso.
  * 2. Facturación total: Suma de importes totales (`totalCents`) contratados.
- * 3. Señas cobradas: Suma de señas acreditadas (40% de señados + 100% de saldados).
- * 4. Saldos por cobrar: Monto remanente (60%) de eventos pendientes de liquidación.
+ * 3. Señas cobradas: Suma de señas acreditadas (50% de señados + 100% de saldados).
+ * 4. Saldos por cobrar: Monto remanente (50%) de eventos pendientes de liquidación.
  *
  * Diseño: Grid responsivo de 4 columnas en desktop (>1280px), 2 en tablet y 1 en móvil.
  */

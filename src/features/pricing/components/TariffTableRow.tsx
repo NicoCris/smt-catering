@@ -19,27 +19,34 @@ interface RowItemProps {
   tariff: Tariff
   previewPrice?: number
   onUpdate: (id: string, cents: number) => void
+  onUpdateFixed: (id: string, cents: number) => void
 }
 
 /**
  * Fila individual de la tabla de tarifas (Módulo 3: Tarifas).
  *
  * Funcionalidad:
- * - Permite edición manual y granular del precio por comensal de un ítem particular.
+ * - Permite edición manual del precio por comensal de un ítem, o del monto fijo por evento (Seguro).
  * - Proporciona controles accesibles (Guardar con Enter/botón, Cancelar con Escape/botón).
  * - Cuando existe una vista previa masiva activa (`previewPrice`), muestra el precio actual tachado
  *   y el nuevo precio proyectado, inhabilitando la edición individual temporalmente.
  */
-export function TariffTableRow({ tariff, previewPrice, onUpdate }: RowItemProps) {
+export function TariffTableRow({ tariff, previewPrice, onUpdate, onUpdateFixed }: RowItemProps) {
+  // El Seguro es un monto fijo por evento; el resto es precio por comensal.
+  const isFixed = tariff.category === 'insurance'
+  const currentCents = isFixed ? (tariff.fixedCents ?? 0) : tariff.pricePerGuestCents
+  const inPreview = previewPrice !== undefined
+
   const [editing, setEditing] = useState(false)
-  const [val, setVal] = useState((tariff.pricePerGuestCents / 100).toFixed(0))
+  const [val, setVal] = useState((currentCents / 100).toFixed(0))
   const [savedBadge, setSavedBadge] = useState(false)
 
   const handleSave = () => {
     const parsed = Number(val)
     if (Number.isFinite(parsed) && parsed >= 0) {
       const cents = Math.round(parsed * 100)
-      onUpdate(tariff.id, cents)
+      if (isFixed) onUpdateFixed(tariff.id, cents)
+      else onUpdate(tariff.id, cents)
       setSavedBadge(true)
       setTimeout(() => setSavedBadge(false), 2500)
     }
@@ -47,7 +54,7 @@ export function TariffTableRow({ tariff, previewPrice, onUpdate }: RowItemProps)
   }
 
   const handleCancel = () => {
-    setVal((tariff.pricePerGuestCents / 100).toFixed(0))
+    setVal((currentCents / 100).toFixed(0))
     setEditing(false)
   }
 
@@ -78,7 +85,11 @@ export function TariffTableRow({ tariff, previewPrice, onUpdate }: RowItemProps)
               step="100"
               autoFocus
               className="h-8 w-28 text-right tnum"
-              aria-label={`Precio por comensal de ${tariff.label}`}
+              aria-label={
+                isFixed
+                  ? `Monto fijo por evento de ${tariff.label}`
+                  : `Precio por comensal de ${tariff.label}`
+              }
               value={val}
               onChange={(e) => setVal(e.target.value)}
               onKeyDown={(e) => {
@@ -106,14 +117,20 @@ export function TariffTableRow({ tariff, previewPrice, onUpdate }: RowItemProps)
             </button>
           </div>
         ) : (
-          <span className={`tnum ${previewPrice ? 'text-ink-mute line-through' : 'text-ink font-normal'}`}>
-            {formatCurrency(tariff.pricePerGuestCents)}
+          <span
+            className={`tnum ${inPreview && !isFixed ? 'text-ink-mute line-through' : 'text-ink font-normal'}`}
+          >
+            {formatCurrency(currentCents)}
           </span>
         )}
       </TD>
-      {previewPrice ? (
+      {inPreview ? (
         <TD className="text-right font-normal text-primary-deep tnum">
-          {formatCurrency(previewPrice)}
+          {isFixed ? (
+            <span className="text-ink-mute">Sin ajuste</span>
+          ) : (
+            formatCurrency(previewPrice ?? 0)
+          )}
         </TD>
       ) : (
         <TD className="text-right">
@@ -122,7 +139,7 @@ export function TariffTableRow({ tariff, previewPrice, onUpdate }: RowItemProps)
               variant="ghost"
               size="sm"
               onClick={() => {
-                setVal((tariff.pricePerGuestCents / 100).toFixed(0))
+                setVal((currentCents / 100).toFixed(0))
                 setEditing(true)
               }}
               className="h-7 px-2.5 text-xs text-primary hover:bg-primary-subdued/20"

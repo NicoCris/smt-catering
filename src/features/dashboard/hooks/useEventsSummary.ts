@@ -33,7 +33,7 @@ export function summarizeEvents(events: EventRecord[]): EventsSummary {
 
   const billingTotalCents = events.reduce((sum, e) => sum + e.totalCents, 0)
 
-  // Señas cobradas: depositCents (40%) en eventos señados o saldo pendiente, y 100% en saldados
+  // Señas cobradas: depositCents (50%) en eventos señados o saldo pendiente, y 100% en saldados
   const depositsCollectedCents = events.reduce((sum, e) => {
     if (e.paymentStatus === 'SEÑA_ABONADA' || e.paymentStatus === 'SALDO_PENDIENTE') {
       return sum + e.depositCents
