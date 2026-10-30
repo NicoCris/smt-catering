@@ -63,15 +63,15 @@ Documento de seguimiento de tareas pendientes organizadas por vistas, módulos d
 
 ## 3. Login & Autenticación
 
-- [ ] **Recuperación de Contraseña**
-  - [ ] Agregar enlace "¿Olvidaste tu contraseña?" en el formulario de login.
-  - [ ] Desarrollar vista y endpoint para solicitud de restablecimiento y cambio de contraseña con token temporal.
-- [ ] **Registro de Nuevos Usuarios (`cliente`)**
+- [x] **Recuperación de Contraseña**
+  - [x] Agregar enlace "¿Olvidaste tu contraseña?" en el formulario de login.
+  - [x] Desarrollar vista y endpoint para solicitud de restablecimiento y cambio de contraseña con token temporal.
+- [x] **Registro de Nuevos Usuarios (`cliente`)**
   - [x] Definir esquema de validación Zod (`shared/schemas/auth.schema.ts`) y endpoint backend inicial (`server/modules/auth/`).
-  - [ ] Agregar vista y formulario de registro en frontend.
-  - [ ] Asignar automáticamente el rol `cliente` a nuevos registros.
-- [ ] **Redirección de Superadmin**
-  - [ ] Al detectar inicio de sesión exitoso con rol `superadmin`, redirigir automáticamente al panel de AdminJS.
+  - [x] Agregar vista y formulario de registro en frontend.
+  - [x] Asignar automáticamente el rol `cliente` a nuevos registros.
+- [x] **Redirección de Superadmin**
+  - [x] Al detectar inicio de sesión exitoso con rol `superadmin`, redirigir automáticamente al panel de AdminJS.
 
 ---
 
