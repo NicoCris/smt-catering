@@ -4,8 +4,22 @@
  */
 import { createServer, type IncomingMessage, type ServerResponse } from 'node:http'
 import { getDatabase } from './db/client.ts'
+import { signJwt, verifyJwt, type JwtPayload } from './lib/jwt.ts'
+import { hashPassword, verifyPassword } from './lib/passwords.ts'
 
 const PORT = Number(process.env.PORT) || 3001
+
+/** Extrae y valida el token JWT de la cookie HTTP-only smt_session o header Authorization. */
+function getAuthUser(req: IncomingMessage): JwtPayload | null {
+  const cookies = parseCookies(req.headers.cookie)
+  const token =
+    cookies.smt_session ||
+    (typeof req.headers.authorization === 'string'
+      ? req.headers.authorization.replace('Bearer ', '')
+      : null)
+  if (!token) return null
+  return verifyJwt(token)
+}
 
 /** Crea la tabla de tokens de reset de contraseña si no existe (idempotente). */
 function ensureResetTokensTable(db: any) {
@@ -193,6 +207,11 @@ const server = createServer(async (req, res) => {
 
   if (url.pathname.startsWith('/api/tariffs/') && req.method === 'PUT') {
     try {
+      const authUser = getAuthUser(req)
+      if (authUser && authUser.role !== 'admin' && authUser.role !== 'superadmin') {
+        return sendJson(res, 403, { error: 'Acceso no autorizado. Se requiere rol de administración.' })
+      }
+
       const id = url.pathname.replace('/api/tariffs/', '')
       const body = await parseBody(req)
       const stmt = db.prepare(
@@ -207,6 +226,11 @@ const server = createServer(async (req, res) => {
 
   if (url.pathname === '/api/tariffs/bulk' && req.method === 'POST') {
     try {
+      const authUser = getAuthUser(req)
+      if (authUser && authUser.role !== 'admin' && authUser.role !== 'superadmin') {
+        return sendJson(res, 403, { error: 'Acceso no autorizado. Se requiere rol de administración.' })
+      }
+
       const body = await parseBody(req)
       const list = body.tariffs as Array<{ id: string; pricePerGuestCents: number; fixedCents?: number }>
       if (Array.isArray(list)) {
@@ -369,14 +393,28 @@ const server = createServer(async (req, res) => {
           username: 'admin',
           fullName: 'Coordinador Comercial',
           email: 'admin@smtcatering.com',
-          role: 'admin',
+          role: 'admin' as const,
         }
-        return sendJson(res, 200, { user }, { 'Set-Cookie': 'smt_session=2; Path=/; HttpOnly; SameSite=Lax' })
+        const token = signJwt({
+          id: 2,
+          role: 'admin',
+          email: 'admin@smtcatering.com',
+          fullName: 'Coordinador Comercial',
+          isClient: false,
+        })
+        return sendJson(
+          res,
+          200,
+          { user },
+          {
+            'Set-Cookie': `smt_session=${token}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${7 * 24 * 60 * 60}`,
+          },
+        )
       }
 
-      // Buscar en usuario_staff
+      // Buscar en usuario_staff (validando password con hash seguro)
       const staff = db.prepare('SELECT * FROM usuario_staff WHERE LOWER(email) = ? AND activo = 1').get(input) as any
-      if (staff) {
+      if (staff && verifyPassword(pass, staff.password_hash)) {
         const user = {
           id: staff.id_usuario,
           username: staff.email.split('@')[0],
@@ -384,29 +422,47 @@ const server = createServer(async (req, res) => {
           email: staff.email,
           role: staff.rol,
         }
+        const token = signJwt({
+          id: staff.id_usuario,
+          role: staff.rol,
+          email: staff.email,
+          fullName: staff.nombre_completo,
+          isClient: false,
+        })
         return sendJson(
           res,
           200,
           { user },
-          { 'Set-Cookie': `smt_session=${staff.id_usuario}; Path=/; HttpOnly; SameSite=Lax` },
+          {
+            'Set-Cookie': `smt_session=${token}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${7 * 24 * 60 * 60}`,
+          },
         )
       }
 
-      // Buscar en cliente
+      // Buscar en cliente (validando password con hash seguro)
       const cliente = db.prepare('SELECT * FROM cliente WHERE LOWER(email) = ?').get(input) as any
-      if (cliente) {
+      if (cliente && verifyPassword(pass, cliente.password_hash)) {
         const user = {
           id: cliente.id_cliente,
           username: cliente.email.split('@')[0],
           fullName: cliente.nombre_completo,
           email: cliente.email,
-          role: 'cliente',
+          role: 'cliente' as const,
         }
+        const token = signJwt({
+          id: cliente.id_cliente,
+          role: 'cliente',
+          email: cliente.email,
+          fullName: cliente.nombre_completo,
+          isClient: true,
+        })
         return sendJson(
           res,
           200,
           { user },
-          { 'Set-Cookie': `smt_session=cli_${cliente.id_cliente}; Path=/; HttpOnly; SameSite=Lax` },
+          {
+            'Set-Cookie': `smt_session=${token}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${7 * 24 * 60 * 60}`,
+          },
         )
       }
 
@@ -418,44 +474,20 @@ const server = createServer(async (req, res) => {
 
   if (url.pathname === '/api/auth/me' && req.method === 'GET') {
     try {
-      const cookies = parseCookies(req.headers.cookie)
-      const session = cookies.smt_session
-
-      if (!session) {
+      const authUser = getAuthUser(req)
+      if (!authUser) {
         return sendJson(res, 200, { user: null })
       }
 
-      if (session.startsWith('cli_')) {
-        const idCliente = Number(session.replace('cli_', ''))
-        const cliente = db.prepare('SELECT * FROM cliente WHERE id_cliente = ?').get(idCliente) as any
-        if (cliente) {
-          return sendJson(res, 200, {
-            user: {
-              id: cliente.id_cliente,
-              username: cliente.email.split('@')[0],
-              fullName: cliente.nombre_completo,
-              email: cliente.email,
-              role: 'cliente',
-            },
-          })
-        }
-      } else {
-        const idUsuario = Number(session)
-        const staff = db.prepare('SELECT * FROM usuario_staff WHERE id_usuario = ? AND activo = 1').get(idUsuario) as any
-        if (staff) {
-          return sendJson(res, 200, {
-            user: {
-              id: staff.id_usuario,
-              username: staff.email.split('@')[0],
-              fullName: staff.nombre_completo,
-              email: staff.email,
-              role: staff.rol,
-            },
-          })
-        }
-      }
-
-      return sendJson(res, 200, { user: null })
+      return sendJson(res, 200, {
+        user: {
+          id: authUser.id,
+          username: authUser.email.split('@')[0],
+          fullName: authUser.fullName,
+          email: authUser.email,
+          role: authUser.role,
+        },
+      })
     } catch (err: any) {
       return sendJson(res, 500, { error: err.message })
     }
@@ -543,12 +575,13 @@ const server = createServer(async (req, res) => {
 
       const email = row.email
 
-      // Actualizar contraseña — por ahora almacenamos plain (TODO: reemplazar con bcrypt)
+      // Actualizar contraseña con hash seguro scrypt
+      const hashedPass = hashPassword(newPass)
       const staffUpd = db
         .prepare('UPDATE usuario_staff SET password_hash = ? WHERE LOWER(email) = ?')
-        .run(newPass, email)
+        .run(hashedPass, email)
       if (staffUpd.changes === 0) {
-        db.prepare('UPDATE cliente SET password_hash = ? WHERE LOWER(email) = ?').run(newPass, email)
+        db.prepare('UPDATE cliente SET password_hash = ? WHERE LOWER(email) = ?').run(hashedPass, email)
       }
 
       // Marcar token como usado
@@ -593,7 +626,8 @@ const server = createServer(async (req, res) => {
       if (cuitExists)
         return sendJson(res, 409, { error: 'Ya existe una cuenta con ese CUIT' })
 
-      // Insertar nuevo cliente — TODO: reemplazar pass por bcrypt.hash(pass, 10)
+      // Insertar nuevo cliente con hash seguro scrypt
+      const passHash = hashPassword(pass)
       const stmt = db.prepare(`
         INSERT INTO cliente (razon_social, cuit, nombre_completo, cargo_responsable, email, telefono, password_hash)
         VALUES (?, ?, ?, ?, ?, ?, ?)
@@ -605,16 +639,26 @@ const server = createServer(async (req, res) => {
         cargoResponsable || null,
         email,
         telefono || null,
-        pass,
+        passHash,
       ) as any
 
+      const idCliente = Number(result.lastInsertRowid)
       const newCliente = {
-        id: result.lastInsertRowid,
-        razonSocial,
-        nombreCompleto,
+        id: idCliente,
+        username: email.split('@')[0],
+        fullName: nombreCompleto,
         email,
-        role: 'cliente',
+        role: 'cliente' as const,
       }
+
+      // Generar JWT firmado real para transporte seguro en cookie
+      const token = signJwt({
+        id: idCliente,
+        role: 'cliente',
+        email,
+        fullName: nombreCompleto,
+        isClient: true,
+      })
 
       // Establecer sesión igual que en login
       return sendJson(
@@ -622,7 +666,7 @@ const server = createServer(async (req, res) => {
         201,
         { success: true, user: newCliente },
         {
-          'Set-Cookie': `smt_session=${JSON.stringify({ id: result.lastInsertRowid, role: 'cliente', email })}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${7 * 24 * 60 * 60}`,
+          'Set-Cookie': `smt_session=${token}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${7 * 24 * 60 * 60}`,
         },
       )
     } catch (err: any) {
@@ -645,6 +689,13 @@ const server = createServer(async (req, res) => {
 
   // Panel de AdminJS para Superadmin (server/modules/adminjs/adminjs.config.ts)
   if (url.pathname.startsWith('/admin')) {
+    const authUser = getAuthUser(req)
+    if (!authUser || authUser.role !== 'superadmin') {
+      res.writeHead(302, { Location: '/login' })
+      res.end()
+      return
+    }
+
     res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' })
     res.end(`<!DOCTYPE html>
 <html lang="es">
