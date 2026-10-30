@@ -13,11 +13,11 @@ Documento de seguimiento de tareas pendientes organizadas por vistas, módulos d
   - [x] Implementar script de reinicio instantáneo `npm run db:reset` (`server/db/reset.mjs`) para sincronizar al equipo sin conflictos de migraciones.
   - [x] Configurar exclusión en `.gitignore` para no subir archivos binarios `.sqlite` a Git.
   - [ ] Migración futura / conexión con Neon PostgreSQL en producción cuando se configure el entorno cloud.
-- [ ] **Autenticación, Sesiones & Arquitectura de Seguridad**
+- [x] **Autenticación, Sesiones & Arquitectura de Seguridad**
   - [x] Definir middleware de autenticación por cookies HTTP-only (`server/middleware/authGuard.ts`).
-  - [ ] Implementar firma y verificación real de JWT con secret key almacenado en Cookie HTTP-only (`SameSite=Lax`, `Secure`).
-  - [ ] Implementar hashing seguro de contraseñas con `bcrypt` (o `argon2`).
-  - [ ] Endpoint `GET /api/auth/me`: devolver información del usuario autenticado (`id`, `nombre`, `email`, `rol`).
+  - [x] Implementar firma y verificación real de JWT con secret key almacenado en Cookie HTTP-only (`SameSite=Lax`, `Secure`).
+  - [x] Implementar hashing seguro de contraseñas con `scrypt` criptográfico nativo (`server/lib/passwords.ts`).
+  - [x] Endpoint `GET /api/auth/me`: devolver información del usuario autenticado (`id`, `nombre`, `email`, `rol`).
   - > **Principio de Seguridad vs UX:**
   - > - **Seguridad Real (Backend):** La seguridad reside exclusivamente en el backend mediante `authGuard` y `roleGuard`. El servidor valida la cookie JWT en cada petición y rechaza accesos no autorizados con `403 Forbidden`.
   - > - **Renderizado UI (Frontend):** Al cargar la aplicación, el frontend consulta `GET /api/auth/me` y guarda la sesión en `useAuthStore` únicamente para propósitos visuales (ocultar botones que el rol no puede ejecutar, adaptar la navegación en `AppShell` y mostrar saludo personalizado).
