@@ -8,6 +8,7 @@
  *  - /comandas → Listado de comandas (protegida).
  *  - /comandas/:eventId → Detalle de comanda (protegida).
  *  - /tarifas → Gestión de tarifas (protegida).
+ *  - /perfil → Perfil del cliente (protegida, solo rol cliente).
  *
  * Guardia de autenticación:
  *  El componente ProtectedRoute lee el estado de authStore.
@@ -24,6 +25,7 @@ import { LoginPage } from '@/features/login/LoginPage'
 import { QuotationPage } from '@/features/quotation/QuotationPage'
 import { ComandaDetailPage, ComandaListPage } from '@/features/production/ComandasPage'
 import { PricingPage } from '@/features/pricing/PricingPage'
+import { ProfilePage } from '@/features/profile/ProfilePage'
 import { useAuthStore } from '@/stores/authStore'
 
 const queryClient = new QueryClient({
@@ -68,6 +70,7 @@ export default function App() {
               <Route path="comandas" element={<ComandaListPage />} />
               <Route path="comandas/:eventId" element={<ComandaDetailPage />} />
               <Route path="tarifas" element={<PricingPage />} />
+              <Route path="perfil" element={<ProfilePage />} />
             </Route>
           </Route>
 

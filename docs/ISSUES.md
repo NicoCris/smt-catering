@@ -77,12 +77,12 @@ Documento de seguimiento de tareas pendientes organizadas por vistas, módulos d
 
 ## 4. Perfil & Configuración Personal [Cliente]
 
-- [ ] **Acceso a Configuración**
-  - [ ] Incorporar ícono de engranaje (ruedita) en la barra de navegación superior para el rol `cliente`.
-- [ ] **Gestión de Datos Personales**
-  - [ ] Pantalla para visualización y actualización de información de contacto (nombre, email, teléfono, razón social).
-- [ ] **Cambio de Contraseña**
-  - [ ] Formulario de actualización de contraseña con validación de contraseña actual y nueva contraseña.
+- [x] **Acceso a Configuración**
+  - [x] Incorporar ícono de engranaje (ruedita) en la barra de navegación superior para el rol `cliente`.
+- [x] **Gestión de Datos Personales**
+  - [x] Pantalla para visualización y actualización de información de contacto (nombre, email, teléfono, razón social).
+- [x] **Cambio de Contraseña**
+  - [x] Formulario de actualización de contraseña con validación de contraseña actual y nueva contraseña.
 
 ---
 

@@ -46,6 +46,28 @@ function parseCookies(cookieHeader?: string): Record<string, string> {
   return list
 }
 
+/** Obtiene el cliente autenticado desde el JWT firmado o cookie previa */
+function getAuthenticatedClient(req: IncomingMessage, db: any) {
+  const authUser = getAuthUser(req)
+  if (authUser && (authUser.role === 'cliente' || authUser.isClient)) {
+    return db.prepare('SELECT * FROM cliente WHERE id_cliente = ?').get(authUser.id) as any
+  }
+
+  // Compatibilidad con cookies directas anteriores si quedara alguna activa
+  const cookies = parseCookies(req.headers.cookie)
+  const session = cookies.smt_session
+  if (!session) return null
+
+  if (session.startsWith('cli_')) {
+    const id = Number(session.replace('cli_', ''))
+    if (!isNaN(id)) {
+      return db.prepare('SELECT * FROM cliente WHERE id_cliente = ?').get(id) as any
+    }
+  }
+
+  return null
+}
+
 function sendJson(
   res: ServerResponse,
   status: number,
@@ -674,6 +696,128 @@ const server = createServer(async (req, res) => {
     }
   }
 
+  // 8. Perfil de Cliente — Obtener información personal y de empresa (Punto 4 ISSUES.md)
+  if (url.pathname === '/api/client/profile' && req.method === 'GET') {
+    try {
+      const cliente = getAuthenticatedClient(req, db)
+      if (!cliente) {
+        return sendJson(res, 401, { error: 'No autorizado o sesión no válida' })
+      }
+
+      return sendJson(res, 200, {
+        profile: {
+          razonSocial: cliente.razon_social || '',
+          cuit: cliente.cuit || '',
+          nombreCompleto: cliente.nombre_completo || '',
+          cargoResponsable: cliente.cargo_responsable || '',
+          email: cliente.email || '',
+          telefono: cliente.telefono || '',
+          direccionLegal: cliente.direccion_legal || '',
+        },
+      })
+    } catch (err: any) {
+      return sendJson(res, 500, { error: err.message })
+    }
+  }
+
+  // 9. Perfil de Cliente — Actualizar datos de contacto (Punto 4 ISSUES.md)
+  if (url.pathname === '/api/client/profile' && req.method === 'PUT') {
+    try {
+      const cliente = getAuthenticatedClient(req, db)
+      if (!cliente) {
+        return sendJson(res, 401, { error: 'No autorizado o sesión no válida' })
+      }
+
+      const body = await parseBody(req)
+      const razonSocial = (body.razonSocial || cliente.razon_social || '').trim()
+      const nombreCompleto = (body.nombreCompleto || cliente.nombre_completo || '').trim()
+      const cargoResponsable = (body.cargoResponsable ?? cliente.cargo_responsable ?? '').trim()
+      const email = (body.email || cliente.email || '').trim().toLowerCase()
+      const telefono = (body.telefono ?? cliente.telefono ?? '').trim()
+      const direccionLegal = (body.direccionLegal ?? cliente.direccion_legal ?? '').trim()
+
+      if (!razonSocial || !nombreCompleto || !email) {
+        return sendJson(res, 400, { error: 'Razón social, nombre del responsable y email son obligatorios' })
+      }
+
+      // Si cambió el email, validar que no esté en uso por otro usuario
+      if (email !== cliente.email.toLowerCase()) {
+        const staffDup = db.prepare('SELECT email FROM usuario_staff WHERE LOWER(email) = ?').get(email)
+        const clienteDup = db.prepare('SELECT email FROM cliente WHERE LOWER(email) = ? AND id_cliente != ?').get(email, cliente.id_cliente)
+        if (staffDup || clienteDup) {
+          return sendJson(res, 409, { error: 'El email ya se encuentra registrado por otra cuenta' })
+        }
+      }
+
+      db.prepare(`
+        UPDATE cliente
+        SET
+          razon_social = ?,
+          nombre_completo = ?,
+          cargo_responsable = ?,
+          email = ?,
+          telefono = ?,
+          direccion_legal = ?
+        WHERE id_cliente = ?
+      `).run(
+        razonSocial,
+        nombreCompleto,
+        cargoResponsable || null,
+        email,
+        telefono || null,
+        direccionLegal || null,
+        cliente.id_cliente,
+      )
+
+      return sendJson(res, 200, {
+        success: true,
+        profile: {
+          razonSocial,
+          cuit: cliente.cuit,
+          nombreCompleto,
+          cargoResponsable,
+          email,
+          telefono,
+          direccionLegal,
+        },
+      })
+    } catch (err: any) {
+      return sendJson(res, 500, { error: err.message })
+    }
+  }
+
+  // 10. Perfil de Cliente — Actualizar contraseña (Punto 4 ISSUES.md)
+  if (url.pathname === '/api/client/change-password' && req.method === 'POST') {
+    try {
+      const cliente = getAuthenticatedClient(req, db)
+      if (!cliente) {
+        return sendJson(res, 401, { error: 'No autorizado o sesión no válida' })
+      }
+
+      const body = await parseBody(req)
+      const currentPassword = (body.currentPassword || '').trim()
+      const newPassword = (body.newPassword || '').trim()
+
+      if (!currentPassword || !newPassword) {
+        return sendJson(res, 400, { error: 'Debes completar la contraseña actual y la nueva contraseña' })
+      }
+      if (newPassword.length < 6) {
+        return sendJson(res, 400, { error: 'La nueva contraseña debe tener al menos 6 caracteres' })
+      }
+
+      if (!verifyPassword(currentPassword, cliente.password_hash)) {
+        return sendJson(res, 400, { error: 'La contraseña actual ingresada es incorrecta' })
+      }
+
+      const newPassHash = hashPassword(newPassword)
+      db.prepare('UPDATE cliente SET password_hash = ? WHERE id_cliente = ?').run(newPassHash, cliente.id_cliente)
+
+      return sendJson(res, 200, { success: true, message: 'Contraseña actualizada con éxito' })
+    } catch (err: any) {
+      return sendJson(res, 500, { error: err.message })
+    }
+  }
+
   // Endpoint explícito de cierre de sesión para AdminJS
   if (url.pathname === '/admin/logout') {
     res.writeHead(200, {
@@ -780,4 +924,7 @@ server.listen(PORT, '0.0.0.0', () => {
   console.log(`   - POST http://localhost:${PORT}/api/auth/forgot-password`)
   console.log(`   - POST http://localhost:${PORT}/api/auth/reset-password`)
   console.log(`   - POST http://localhost:${PORT}/api/auth/register`)
+  console.log(`   - GET  http://localhost:${PORT}/api/client/profile`)
+  console.log(`   - PUT  http://localhost:${PORT}/api/client/profile`)
+  console.log(`   - POST http://localhost:${PORT}/api/client/change-password`)
 })
