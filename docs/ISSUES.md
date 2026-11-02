@@ -11,8 +11,8 @@ Documento de seguimiento de tareas pendientes organizadas por vistas, módulos d
   - [x] Diseñar script con set de datos de prueba / smoke data (`server/db/seed.sql`) con casos realistas: eventos pasados saldados, eventos futuros señados, eventos concurrentes de $\le 60$ comensales, eventos cancelados, variedad de restricciones alimentarias normalizadas y estados de pago.
   - [x] Configurar base de datos inicial SQLite local (`server/db/smt.sqlite`) sin dependencias externas usando `node:sqlite` nativo.
   - [x] Implementar script de reinicio instantáneo `npm run db:reset` (`server/db/reset.mjs`) para sincronizar al equipo sin conflictos de migraciones.
-  - [x] Configurar exclusión en `.gitignore` para no subir archivos binarios `.sqlite` a Git.
-  - [ ] Migración futura / conexión con Neon PostgreSQL en producción cuando se configure el entorno cloud.
+  - [x] Configurar exclusión en `.gitignore` para no subir archivos binarios `.sqlite` ni variables `.env` a Git.
+  - [x] Migración y conexión con Neon PostgreSQL en cloud (`server/db/migrate-neon.mjs` y `npm run db:migrate:neon`) con esquema `schema.postgres.sql` y `seed.postgres.sql`.
 - [x] **Autenticación, Sesiones & Arquitectura de Seguridad**
   - [x] Definir middleware de autenticación por cookies HTTP-only (`server/middleware/authGuard.ts`).
   - [x] Implementar firma y verificación real de JWT con secret key almacenado en Cookie HTTP-only (`SameSite=Lax`, `Secure`).
