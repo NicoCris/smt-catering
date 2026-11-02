@@ -818,86 +818,231 @@ const server = createServer(async (req, res) => {
     }
   }
 
-  // Endpoint explícito de cierre de sesión para AdminJS
-  if (url.pathname === '/admin/logout') {
-    res.writeHead(200, {
-      'Content-Type': 'text/html; charset=utf-8',
-      'Set-Cookie': 'smt_session=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0',
-    })
-    res.end(`<!DOCTYPE html><html><body><script>
-      try { sessionStorage.clear(); localStorage.clear(); } catch (e) {}
-      window.location.href = '/login';
-    </script></body></html>`)
-    return
-  }
-
-  // Panel de AdminJS para Superadmin (server/modules/adminjs/adminjs.config.ts)
-  if (url.pathname.startsWith('/admin')) {
+  // 11. Gestión de Usuarios — Listar Colaboradores (Staff) y Clientes B2B
+  if (url.pathname === '/api/users' && req.method === 'GET') {
     const authUser = getAuthUser(req)
-    if (!authUser || authUser.role !== 'superadmin') {
-      res.writeHead(302, { Location: '/login' })
-      res.end()
-      return
+    if (!authUser || (authUser.role !== 'superadmin' && authUser.role !== 'admin')) {
+      return sendJson(res, 403, { error: 'Acceso denegado. Se requiere rol de administración.' })
     }
 
-    res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' })
-    res.end(`<!DOCTYPE html>
-<html lang="es">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>AdminJS — Panel de Superadministración SMT Catering</title>
-  <style>
-    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: #070e1b; color: #f8fafc; display: flex; align-items: center; justify-content: center; min-height: 100vh; margin: 0; padding: 16px; box-sizing: border-box; }
-    .card { background: #111c30; border: 1px solid #1e2e4a; border-radius: 16px; padding: 40px; max-width: 520px; text-align: center; box-shadow: 0 20px 40px rgba(0,0,0,0.4); }
-    h1 { color: #38bdf8; font-size: 22px; font-weight: 600; margin: 12px 0 8px; }
-    p { color: #94a3b8; font-size: 14px; line-height: 1.6; margin: 8px 0; }
-    .badge { display: inline-flex; align-items: center; gap: 6px; background: rgba(56, 189, 248, 0.12); color: #38bdf8; border: 1px solid rgba(56, 189, 248, 0.25); padding: 4px 14px; border-radius: 9999px; font-size: 12px; font-weight: 600; letter-spacing: 0.5px; text-transform: uppercase; }
-    .meta { margin: 24px 0; padding: 16px; background: #0a1322; border-radius: 8px; border: 1px solid #1a273e; text-align: left; font-size: 13px; color: #cbd5e1; }
-    .meta div { margin-bottom: 6px; }
-    .meta div:last-child { margin-bottom: 0; }
-    .meta span.label { color: #64748b; font-weight: 500; }
-    .btn-group { display: flex; gap: 12px; justify-content: center; margin-top: 24px; flex-wrap: wrap; }
-    .btn { display: inline-flex; align-items: center; justify-content: center; padding: 10px 22px; border-radius: 9999px; font-weight: 500; font-size: 14px; border: none; cursor: pointer; text-decoration: none; transition: all 0.15s ease; }
-    .btn-primary { background: #0284c7; color: white; }
-    .btn-primary:hover { background: #0369a1; }
-    .btn-secondary { background: #1e293b; color: #e2e8f0; border: 1px solid #334155; }
-    .btn-secondary:hover { background: #334155; }
-    .btn-danger { background: rgba(234, 34, 97, 0.15); color: #ff6b8b; border: 1px solid rgba(234, 34, 97, 0.3); }
-    .btn-danger:hover { background: rgba(234, 34, 97, 0.25); }
-  </style>
-</head>
-<body>
-  <div class="card">
-    <div class="badge">
-      <span>●</span> Superadmin Panel
-    </div>
-    <h1>SMT Catering — Panel de Administración</h1>
-    <p>Has sido redirigido al panel exclusivo de <strong>Superadministrador</strong>.</p>
-    <div class="meta">
-      <div><span class="label">Módulo:</span> <code>server/modules/adminjs/adminjs.config.ts</code></div>
-      <div><span class="label">Ruta raíz:</span> <code>/admin</code></div>
-      <div><span class="label">Rol activo:</span> <code>superadmin</code></div>
-    </div>
-    <div class="btn-group">
-      <a class="btn btn-secondary" href="/">Ir a la aplicación</a>
-      <button id="logoutBtn" type="button" class="btn btn-danger">Cerrar sesión</button>
-    </div>
-  </div>
-  <script>
-    document.getElementById('logoutBtn').addEventListener('click', async function() {
-      try {
-        await fetch('/api/auth/logout', { method: 'POST', credentials: 'include' });
-      } catch (e) {}
-      try {
-        sessionStorage.clear();
-        localStorage.clear();
-      } catch (e) {}
-      window.location.href = '/login';
-    });
-  </script>
-</body>
-</html>`)
+    try {
+      const staff = db.prepare(`
+        SELECT id_usuario, nombre_completo, email, rol, activo, fecha_creacion
+        FROM usuario_staff
+        ORDER BY id_usuario ASC
+      `).all()
+
+      const clients = db.prepare(`
+        SELECT id_cliente, razon_social, cuit, nombre_completo, cargo_responsable, email, telefono, direccion_legal, fecha_aniversario, fecha_creacion
+        FROM cliente
+        ORDER BY id_cliente ASC
+      `).all()
+
+      return sendJson(res, 200, { staff, clients })
+    } catch (err: any) {
+      return sendJson(res, 500, { error: err.message })
+    }
+  }
+
+  // 12. Gestión de Usuarios — Crear nuevo miembro de Staff
+  if (url.pathname === '/api/users/staff' && req.method === 'POST') {
+    const authUser = getAuthUser(req)
+    if (!authUser || (authUser.role !== 'superadmin' && authUser.role !== 'admin')) {
+      return sendJson(res, 403, { error: 'Acceso denegado. Se requiere rol de administración.' })
+    }
+
+    try {
+      const body = await parseBody(req)
+      const nombreCompleto = (body.nombreCompleto || body.nombre_completo || '').trim()
+      const email = (body.email || '').trim().toLowerCase()
+      const password = (body.password || '').trim()
+      const rol = (body.rol || 'admin').trim().toLowerCase()
+      const activo = body.activo === 0 || body.activo === false ? 0 : 1
+
+      if (!nombreCompleto || !email || !password) {
+        return sendJson(res, 400, { error: 'Nombre completo, email y contraseña son obligatorios.' })
+      }
+      if (password.length < 6) {
+        return sendJson(res, 400, { error: 'La contraseña debe tener al menos 6 caracteres.' })
+      }
+      if (!['superadmin', 'admin', 'cocina'].includes(rol)) {
+        return sendJson(res, 400, { error: 'Rol inválido. Opciones válidas: superadmin, admin, cocina.' })
+      }
+      if (rol === 'superadmin' && authUser.role !== 'superadmin') {
+        return sendJson(res, 403, { error: 'Solo el Superadministrador puede crear usuarios con rol superadmin.' })
+      }
+
+      const staffExists = db.prepare('SELECT id_usuario FROM usuario_staff WHERE LOWER(email) = ?').get(email)
+      const clientExists = db.prepare('SELECT id_cliente FROM cliente WHERE LOWER(email) = ?').get(email)
+      if (staffExists || clientExists) {
+        return sendJson(res, 409, { error: 'El email ya se encuentra registrado por otra cuenta.' })
+      }
+
+      const passwordHash = hashPassword(password)
+      const insertRes = db.prepare(`
+        INSERT INTO usuario_staff (nombre_completo, email, password_hash, rol, activo)
+        VALUES (?, ?, ?, ?, ?)
+      `).run(nombreCompleto, email, passwordHash, rol, activo)
+
+      const newId = (insertRes as any).lastInsertRowid || (insertRes as any).id
+      const created = db.prepare(`
+        SELECT id_usuario, nombre_completo, email, rol, activo, fecha_creacion
+        FROM usuario_staff
+        WHERE id_usuario = ?
+      `).get(newId)
+
+      return sendJson(res, 201, { success: true, user: created })
+    } catch (err: any) {
+      return sendJson(res, 500, { error: err.message })
+    }
+  }
+
+  // 13. Gestión de Usuarios — Modificar miembro de Staff
+  const matchStaffId = url.pathname.match(/^\/api\/users\/staff\/(\d+)$/)
+  if (matchStaffId && (req.method === 'PATCH' || req.method === 'PUT')) {
+    const authUser = getAuthUser(req)
+    if (!authUser || (authUser.role !== 'superadmin' && authUser.role !== 'admin')) {
+      return sendJson(res, 403, { error: 'Acceso denegado. Se requiere rol de administración.' })
+    }
+
+    try {
+      const targetId = Number(matchStaffId[1])
+      const existing = db.prepare('SELECT * FROM usuario_staff WHERE id_usuario = ?').get(targetId) as any
+      if (!existing) {
+        return sendJson(res, 404, { error: 'Usuario no encontrado.' })
+      }
+
+      if (existing.rol === 'superadmin' && authUser.role !== 'superadmin') {
+        return sendJson(res, 403, { error: 'Solo un Superadministrador puede modificar a otro Superadministrador.' })
+      }
+
+      const body = await parseBody(req)
+      const nombreCompleto = body.nombreCompleto !== undefined ? String(body.nombreCompleto).trim() : existing.nombre_completo
+      const email = body.email !== undefined ? String(body.email).trim().toLowerCase() : existing.email
+      const rol = body.rol !== undefined ? String(body.rol).trim().toLowerCase() : existing.rol
+      const activo = body.activo !== undefined ? (body.activo === 0 || body.activo === false ? 0 : 1) : existing.activo
+
+      if (rol && !['superadmin', 'admin', 'cocina'].includes(rol)) {
+        return sendJson(res, 400, { error: 'Rol inválido.' })
+      }
+      if (rol === 'superadmin' && authUser.role !== 'superadmin') {
+        return sendJson(res, 403, { error: 'Solo un Superadministrador puede promover un usuario a superadmin.' })
+      }
+
+      if (authUser.id === targetId && activo === 0) {
+        return sendJson(res, 400, { error: 'No puedes desactivar tu propia cuenta mientras estás conectado.' })
+      }
+
+      if (email !== existing.email.toLowerCase()) {
+        const staffDup = db.prepare('SELECT id_usuario FROM usuario_staff WHERE LOWER(email) = ? AND id_usuario != ?').get(email, targetId)
+        const clientDup = db.prepare('SELECT id_cliente FROM cliente WHERE LOWER(email) = ?').get(email)
+        if (staffDup || clientDup) {
+          return sendJson(res, 409, { error: 'El email ya se encuentra en uso por otra cuenta.' })
+        }
+      }
+
+      let newPasswordHash = existing.password_hash
+      if (body.password && String(body.password).trim().length >= 6) {
+        newPasswordHash = hashPassword(String(body.password).trim())
+      }
+
+      db.prepare(`
+        UPDATE usuario_staff
+        SET nombre_completo = ?, email = ?, password_hash = ?, rol = ?, activo = ?
+        WHERE id_usuario = ?
+      `).run(nombreCompleto, email, newPasswordHash, rol, activo, targetId)
+
+      const updated = db.prepare(`
+        SELECT id_usuario, nombre_completo, email, rol, activo, fecha_creacion
+        FROM usuario_staff
+        WHERE id_usuario = ?
+      `).get(targetId)
+
+      return sendJson(res, 200, { success: true, user: updated })
+    } catch (err: any) {
+      return sendJson(res, 500, { error: err.message })
+    }
+  }
+
+  // 14. Gestión de Usuarios — Eliminar miembro de Staff (Solo Superadmin)
+  if (matchStaffId && req.method === 'DELETE') {
+    const authUser = getAuthUser(req)
+    if (!authUser || authUser.role !== 'superadmin') {
+      return sendJson(res, 403, { error: 'Solo el Superadministrador puede eliminar usuarios definitivamente.' })
+    }
+
+    try {
+      const targetId = Number(matchStaffId[1])
+      if (authUser.id === targetId) {
+        return sendJson(res, 400, { error: 'No puedes eliminar tu propia cuenta.' })
+      }
+
+      db.prepare('DELETE FROM usuario_staff WHERE id_usuario = ?').run(targetId)
+      return sendJson(res, 200, { success: true, message: 'Usuario eliminado correctamente.' })
+    } catch (err: any) {
+      return sendJson(res, 500, { error: err.message })
+    }
+  }
+
+  // 15. Gestión de Usuarios — Modificar Cliente B2B
+  const matchClientId = url.pathname.match(/^\/api\/users\/clients\/(\d+)$/)
+  if (matchClientId && (req.method === 'PATCH' || req.method === 'PUT')) {
+    const authUser = getAuthUser(req)
+    if (!authUser || (authUser.role !== 'superadmin' && authUser.role !== 'admin')) {
+      return sendJson(res, 403, { error: 'Acceso denegado. Se requiere rol de administración.' })
+    }
+
+    try {
+      const targetId = Number(matchClientId[1])
+      const existing = db.prepare('SELECT * FROM cliente WHERE id_cliente = ?').get(targetId) as any
+      if (!existing) {
+        return sendJson(res, 404, { error: 'Cliente no encontrado.' })
+      }
+
+      const body = await parseBody(req)
+      const razonSocial = body.razonSocial !== undefined ? String(body.razonSocial).trim() : existing.razon_social
+      const cuit = body.cuit !== undefined ? String(body.cuit).trim() : existing.cuit
+      const nombreCompleto = body.nombreCompleto !== undefined ? String(body.nombreCompleto).trim() : existing.nombre_completo
+      const cargoResponsable = body.cargoResponsable !== undefined ? String(body.cargoResponsable).trim() : existing.cargo_responsable
+      const email = body.email !== undefined ? String(body.email).trim().toLowerCase() : existing.email
+      const telefono = body.telefono !== undefined ? String(body.telefono).trim() : existing.telefono
+      const direccionLegal = body.direccionLegal !== undefined ? String(body.direccionLegal).trim() : existing.direccion_legal
+
+      if (email !== existing.email.toLowerCase()) {
+        const staffDup = db.prepare('SELECT id_usuario FROM usuario_staff WHERE LOWER(email) = ?').get(email)
+        const clientDup = db.prepare('SELECT id_cliente FROM cliente WHERE LOWER(email) = ? AND id_cliente != ?').get(email, targetId)
+        if (staffDup || clientDup) {
+          return sendJson(res, 409, { error: 'El email ya está en uso por otro usuario.' })
+        }
+      }
+
+      let newPasswordHash = existing.password_hash
+      if (body.password && String(body.password).trim().length >= 6) {
+        newPasswordHash = hashPassword(String(body.password).trim())
+      }
+
+      db.prepare(`
+        UPDATE cliente
+        SET razon_social = ?, cuit = ?, nombre_completo = ?, cargo_responsable = ?, email = ?, telefono = ?, direccion_legal = ?, password_hash = ?
+        WHERE id_cliente = ?
+      `).run(razonSocial, cuit, nombreCompleto, cargoResponsable, email, telefono, direccionLegal, newPasswordHash, targetId)
+
+      const updated = db.prepare(`
+        SELECT id_cliente, razon_social, cuit, nombre_completo, cargo_responsable, email, telefono, direccion_legal, fecha_aniversario, fecha_creacion
+        FROM cliente
+        WHERE id_cliente = ?
+      `).get(targetId)
+
+      return sendJson(res, 200, { success: true, client: updated })
+    } catch (err: any) {
+      return sendJson(res, 500, { error: err.message })
+    }
+  }
+
+  // Redirección amigable de /admin a /usuarios
+  if (url.pathname.startsWith('/admin')) {
+    res.writeHead(302, { Location: '/usuarios' })
+    res.end()
     return
   }
 
@@ -927,4 +1072,9 @@ server.listen(PORT, '0.0.0.0', () => {
   console.log(`   - GET  http://localhost:${PORT}/api/client/profile`)
   console.log(`   - PUT  http://localhost:${PORT}/api/client/profile`)
   console.log(`   - POST http://localhost:${PORT}/api/client/change-password`)
+  console.log(`   - GET  http://localhost:${PORT}/api/users`)
+  console.log(`   - POST http://localhost:${PORT}/api/users/staff`)
+  console.log(`   - PATCH http://localhost:${PORT}/api/users/staff/:id`)
+  console.log(`   - DELETE http://localhost:${PORT}/api/users/staff/:id`)
+  console.log(`   - PATCH http://localhost:${PORT}/api/users/clients/:id`)
 })

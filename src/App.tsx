@@ -26,6 +26,7 @@ import { QuotationPage } from '@/features/quotation/QuotationPage'
 import { ComandaDetailPage, ComandaListPage } from '@/features/production/ComandasPage'
 import { PricingPage } from '@/features/pricing/PricingPage'
 import { ProfilePage } from '@/features/profile/ProfilePage'
+import { UsersPage } from '@/features/users/UsersPage'
 import { useAuthStore } from '@/stores/authStore'
 
 const queryClient = new QueryClient({
@@ -49,6 +50,17 @@ function ProtectedRoute() {
   return <Outlet />
 }
 
+/**
+ * AdminRoute — Guardia que restringe rutas exclusivas para Superadmin y Administradores.
+ */
+function AdminRoute({ children }: { children: React.ReactNode }) {
+  const role = useAuthStore((s) => s.user?.role)
+  if (role && role !== 'superadmin' && role !== 'admin') {
+    return <Navigate to="/" replace />
+  }
+  return <>{children}</>
+}
+
 export default function App() {
   const checkSession = useAuthStore((s) => s.checkSession)
 
@@ -70,6 +82,14 @@ export default function App() {
               <Route path="comandas" element={<ComandaListPage />} />
               <Route path="comandas/:eventId" element={<ComandaDetailPage />} />
               <Route path="tarifas" element={<PricingPage />} />
+              <Route
+                path="usuarios"
+                element={
+                  <AdminRoute>
+                    <UsersPage />
+                  </AdminRoute>
+                }
+              />
               <Route path="perfil" element={<ProfilePage />} />
             </Route>
           </Route>
