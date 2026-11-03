@@ -9,7 +9,7 @@
     "lint": "oxlint",
     "typecheck": "tsc -b --noEmit",
     "smoke": "node scripts/smoke.mjs",
-    "db:reset": "node server/db/reset.mjs",
+    "db:setup": "node server/db/migrate-neon.mjs",
     "db:migrate:neon": "node server/db/migrate-neon.mjs",
     "server": "node server/index.ts",
     "preview": "vite preview"

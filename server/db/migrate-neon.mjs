@@ -24,13 +24,13 @@ const pool = new Pool({
 async function migrate() {
   const client = await pool.connect()
   try {
-    console.log('🔄 Ejecutando DDL (schema.postgres.sql) en Neon...')
-    const schemaSql = readFileSync(resolve(__dirname, 'schema.postgres.sql'), 'utf-8')
+    console.log('🔄 Ejecutando DDL (schema.sql) en Neon PostgreSQL...')
+    const schemaSql = readFileSync(resolve(__dirname, 'schema.sql'), 'utf-8')
     await client.query(schemaSql)
     console.log('✅ Tablas creadas / verificadas con éxito en Neon.')
 
-    console.log('🌱 Cargando datos iniciales (seed.postgres.sql) en Neon...')
-    const seedSql = readFileSync(resolve(__dirname, 'seed.postgres.sql'), 'utf-8')
+    console.log('🌱 Cargando datos iniciales (seed.sql) en Neon PostgreSQL...')
+    const seedSql = readFileSync(resolve(__dirname, 'seed.sql'), 'utf-8')
     await client.query(seedSql)
     console.log('✅ Datos iniciales sembrados con éxito en Neon.')
 

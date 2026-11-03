@@ -1,9 +1,9 @@
 /**
  * Punto de entrada del servidor Backend de SMT Catering.
- * Servidor HTTP nativo de Node.js conectado a la base de datos SQLite (MER_v3).
+ * Servidor HTTP nativo de Node.js conectado a PostgreSQL (Neon Cloud Database).
  */
 import { createServer, type IncomingMessage, type ServerResponse } from 'node:http'
-import { getDatabase } from './db/client.ts'
+import { db, getDatabase } from './db/client.ts'
 import { signJwt, verifyJwt, type JwtPayload } from './lib/jwt.ts'
 import { hashPassword, verifyPassword } from './lib/passwords.ts'
 
@@ -22,24 +22,28 @@ function getAuthUser(req: IncomingMessage): JwtPayload | null {
 }
 
 /** Crea la tabla de tokens de reset de contraseña si no existe (idempotente). */
-function ensureResetTokensTable(db: any) {
-  db.exec(`
-    CREATE TABLE IF NOT EXISTS password_reset_tokens (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      email TEXT NOT NULL,
-      token TEXT NOT NULL UNIQUE,
-      expires_at INTEGER NOT NULL,
-      used INTEGER NOT NULL DEFAULT 0
-    )
-  `)
+async function ensureResetTokensTable(dbClient: typeof db) {
+  try {
+    await dbClient.exec(`
+      CREATE TABLE IF NOT EXISTS password_reset_tokens (
+        id SERIAL PRIMARY KEY,
+        email VARCHAR(100) NOT NULL,
+        token VARCHAR(64) NOT NULL UNIQUE,
+        expires_at BIGINT NOT NULL,
+        used INTEGER NOT NULL DEFAULT 0
+      )
+    `)
+  } catch (err: any) {
+    console.error('⚠️ Error al verificar tabla password_reset_tokens:', err.message)
+  }
 }
 
 /** Garantiza que la columna activo exista en la tabla cliente (idempotente). */
-function ensureClientActiveColumn(db: any) {
+async function ensureClientActiveColumn(dbClient: typeof db) {
   try {
-    db.exec(`ALTER TABLE cliente ADD COLUMN activo INTEGER NOT NULL DEFAULT 1`)
+    await dbClient.exec(`ALTER TABLE cliente ADD COLUMN IF NOT EXISTS activo INTEGER NOT NULL DEFAULT 1`)
   } catch {
-    // Si ya existe la columna, no hace nada
+    // Si ya existe la columna o la base no lo permite, continúa
   }
 }
 
@@ -56,10 +60,10 @@ function parseCookies(cookieHeader?: string): Record<string, string> {
 }
 
 /** Obtiene el cliente autenticado desde el JWT firmado o cookie previa */
-function getAuthenticatedClient(req: IncomingMessage, db: any) {
+async function getAuthenticatedClient(req: IncomingMessage, dbClient: typeof db) {
   const authUser = getAuthUser(req)
   if (authUser && (authUser.role === 'cliente' || authUser.isClient)) {
-    return db.prepare('SELECT * FROM cliente WHERE id_cliente = ?').get(authUser.id) as any
+    return await dbClient.queryOne('SELECT * FROM cliente WHERE id_cliente = ?', [authUser.id])
   }
 
   // Compatibilidad con cookies directas anteriores si quedara alguna activa
@@ -70,7 +74,7 @@ function getAuthenticatedClient(req: IncomingMessage, db: any) {
   if (session.startsWith('cli_')) {
     const id = Number(session.replace('cli_', ''))
     if (!isNaN(id)) {
-      return db.prepare('SELECT * FROM cliente WHERE id_cliente = ?').get(id) as any
+      return await dbClient.queryOne('SELECT * FROM cliente WHERE id_cliente = ?', [id])
     }
   }
 
@@ -111,93 +115,96 @@ function parseBody(req: IncomingMessage): Promise<any> {
   })
 }
 
-function fetchAllEvents(db: any) {
-  const rows = db
-    .prepare(
-      `SELECT
-        r.*,
-        c.razon_social as cliente_empresa,
-        c.nombre_completo as contacto
-      FROM reserva r
-      JOIN cliente c ON c.id_cliente = r.id_cliente
-      ORDER BY r.fecha_evento ASC`,
-    )
-    .all()
+async function fetchAllEvents(dbClient: typeof db) {
+  const rows = await dbClient.query(
+    `SELECT
+      r.*,
+      c.razon_social as cliente_empresa,
+      c.nombre_completo as contacto
+    FROM reserva r
+    JOIN cliente c ON c.id_cliente = r.id_cliente
+    ORDER BY r.fecha_evento ASC`,
+  )
 
-  const stationsStmt = db.prepare(`
-    SELECT e.codigo
-    FROM detalle_reserva_estacion dre
-    JOIN estacion e ON e.id_estacion = dre.id_estacion
-    WHERE dre.id_reserva = ?
-  `)
+  const events = await Promise.all(
+    rows.map(async (r: any) => {
+      const [stationRows, dietaryRows, pagos] = await Promise.all([
+        dbClient.query(
+          `SELECT e.codigo
+           FROM detalle_reserva_estacion dre
+           JOIN estacion e ON e.id_estacion = dre.id_estacion
+           WHERE dre.id_reserva = ?`,
+          [r.id_reserva],
+        ),
+        dbClient.query(
+          `SELECT tipo_restriccion, cantidad_personas, observaciones
+           FROM restriccion_alimentaria
+           WHERE id_reserva = ?`,
+          [r.id_reserva],
+        ),
+        dbClient.query(
+          `SELECT tipo_pago, monto, estado
+           FROM pago
+           WHERE id_reserva = ? AND estado = 'confirmado'`,
+          [r.id_reserva],
+        ),
+      ])
 
-  const dietaryStmt = db.prepare(`
-    SELECT tipo_restriccion, cantidad_personas, observaciones
-    FROM restriccion_alimentaria
-    WHERE id_reserva = ?
-  `)
+      const stations = stationRows.map((s: any) => s.codigo)
 
-  const pagosStmt = db.prepare(`
-    SELECT tipo_pago, monto, estado
-    FROM pago
-    WHERE id_reserva = ? AND estado = 'confirmado'
-  `)
+      let celiacos = 0
+      let vegetarianos = 0
+      let veganos = 0
+      const alergias: string[] = []
 
-  return rows.map((r: any) => {
-    const stations = stationsStmt.all(r.id_reserva).map((s: any) => s.codigo)
-    const dietaryRows = dietaryStmt.all(r.id_reserva)
-    const pagos = pagosStmt.all(r.id_reserva)
-
-    let celiacos = 0
-    let vegetarianos = 0
-    let veganos = 0
-    const alergias: string[] = []
-
-    for (const d of dietaryRows) {
-      const tipo = (d.tipo_restriccion || '').toLowerCase()
-      if (tipo.includes('celia')) celiacos += d.cantidad_personas
-      else if (tipo.includes('vege')) vegetarianos += d.cantidad_personas
-      else if (tipo.includes('vega')) veganos += d.cantidad_personas
-      else if (tipo.includes('alerg')) {
-        if (d.observaciones) alergias.push(d.observaciones)
+      for (const d of dietaryRows) {
+        const tipo = (d.tipo_restriccion || '').toLowerCase()
+        if (tipo.includes('celia')) celiacos += d.cantidad_personas
+        else if (tipo.includes('vege')) vegetarianos += d.cantidad_personas
+        else if (tipo.includes('vega')) veganos += d.cantidad_personas
+        else if (tipo.includes('alerg')) {
+          if (d.observaciones) alergias.push(d.observaciones)
+        }
       }
-    }
 
-    let depositPesos = 0
-    for (const p of pagos) {
-      if (p.tipo_pago === 'SEÑA' || p.tipo_pago === 'TOTAL') {
-        depositPesos += p.monto
+      let depositPesos = 0
+      for (const p of pagos) {
+        if (p.tipo_pago === 'SEÑA' || p.tipo_pago === 'TOTAL') {
+          depositPesos += Number(p.monto) || 0
+        }
       }
-    }
 
-    return {
-      id: `EV-${r.id_reserva}`,
-      clientName: r.cliente_empresa || r.contacto,
-      eventDate: r.fecha_evento,
-      guests: r.cantidad_invitados,
-      stationIds: stations,
-      status: r.estado_evento || 'Presupuestado',
-      paymentStatus: r.estado_pago || 'SEÑA_PENDIENTE',
-      totalCents: Math.round(r.monto_total * 100),
-      depositCents: Math.round(depositPesos * 100),
-      dietary: {
-        celiacos,
-        vegetarianos,
-        veganos,
-        alergias: alergias.join(', '),
-      },
-      kitchenNotes: r.notas_cocina || '',
-      startTime: r.hora_inicio,
-      endTime: r.hora_fin,
-      durationHours: r.duracion_horas,
-      locationAddress: r.direccion_evento,
-      distanceKm: r.distancia_km,
-      insuranceCents: Math.round((r.monto_seguro || 0) * 100),
-    }
-  })
+      return {
+        id: `EV-${r.id_reserva}`,
+        clientName: r.cliente_empresa || r.contacto,
+        eventDate: r.fecha_evento,
+        guests: r.cantidad_invitados,
+        stationIds: stations,
+        status: r.estado_evento || 'Presupuestado',
+        paymentStatus: r.estado_pago || 'SEÑA_PENDIENTE',
+        totalCents: Math.round((Number(r.monto_total) || 0) * 100),
+        depositCents: Math.round(depositPesos * 100),
+        dietary: {
+          celiacos,
+          vegetarianos,
+          veganos,
+          alergias: alergias.join(', '),
+        },
+        kitchenNotes: r.notas_cocina || '',
+        startTime: r.hora_inicio,
+        endTime: r.hora_fin,
+        durationHours: Number(r.duracion_horas) || 3.0,
+        locationAddress: r.direccion_evento,
+        distanceKm: Number(r.distancia_km) || 10.0,
+        insuranceCents: Math.round((Number(r.monto_seguro) || 0) * 100),
+      }
+    }),
+  )
+
+  return events
 }
 
-const server = createServer(async (req, res) => {
+export const server = createServer(async (req, res) => {
   if (req.method === 'OPTIONS') {
     res.writeHead(204, {
       'Access-Control-Allow-Origin': '*',
@@ -210,7 +217,7 @@ const server = createServer(async (req, res) => {
   }
 
   const url = new URL(req.url || '/', `http://${req.headers.host || 'localhost'}`)
-  const db = getDatabase()
+  const dbClient = getDatabase()
 
   // 1. Health check
   if (url.pathname === '/api/health' && req.method === 'GET') {
@@ -220,10 +227,10 @@ const server = createServer(async (req, res) => {
   // 2. Tarifas
   if (url.pathname === '/api/tariffs' && req.method === 'GET') {
     try {
-      const rows = db
-        .prepare('SELECT id, label, category, price_per_guest_cents, fixed_cents FROM tarifas WHERE is_active = 1')
-        .all() as any[]
-      const tariffs = rows.map((r) => ({
+      const rows = await dbClient.query(
+        'SELECT id, label, category, price_per_guest_cents, fixed_cents FROM tarifas WHERE is_active = 1',
+      )
+      const tariffs = rows.map((r: any) => ({
         id: r.id,
         label: r.label,
         category: r.category,
@@ -245,10 +252,10 @@ const server = createServer(async (req, res) => {
 
       const id = url.pathname.replace('/api/tariffs/', '')
       const body = await parseBody(req)
-      const stmt = db.prepare(
+      await dbClient.execute(
         'UPDATE tarifas SET price_per_guest_cents = ?, fixed_cents = COALESCE(?, fixed_cents) WHERE id = ?',
+        [body.pricePerGuestCents, body.fixedCents ?? null, id],
       )
-      stmt.run(body.pricePerGuestCents, body.fixedCents ?? null, id)
       return sendJson(res, 200, { success: true })
     } catch (err: any) {
       return sendJson(res, 500, { error: err.message })
@@ -265,9 +272,11 @@ const server = createServer(async (req, res) => {
       const body = await parseBody(req)
       const list = body.tariffs as Array<{ id: string; pricePerGuestCents: number; fixedCents?: number }>
       if (Array.isArray(list)) {
-        const stmt = db.prepare('UPDATE tarifas SET price_per_guest_cents = ? WHERE id = ?')
         for (const t of list) {
-          stmt.run(t.pricePerGuestCents, t.id)
+          await dbClient.execute('UPDATE tarifas SET price_per_guest_cents = ? WHERE id = ?', [
+            t.pricePerGuestCents,
+            t.id,
+          ])
         }
       }
       return sendJson(res, 200, { success: true })
@@ -279,7 +288,7 @@ const server = createServer(async (req, res) => {
   // 3. Eventos
   if (url.pathname === '/api/events' && req.method === 'GET') {
     try {
-      const events = fetchAllEvents(db)
+      const events = await fetchAllEvents(dbClient)
       return sendJson(res, 200, { events })
     } catch (err: any) {
       return sendJson(res, 500, { error: err.message })
@@ -291,96 +300,115 @@ const server = createServer(async (req, res) => {
       const body = await parseBody(req)
 
       // 1. Cliente B2B (obtener o crear)
-      let cliente = db.prepare('SELECT id_cliente FROM cliente WHERE razon_social = ?').get(body.clientName) as any
+      let cliente = await dbClient.queryOne('SELECT id_cliente FROM cliente WHERE razon_social = ?', [
+        body.clientName,
+      ])
       let idCliente = cliente?.id_cliente
       if (!idCliente) {
-        const insertCliente = db.prepare(`
-          INSERT INTO cliente (razon_social, cuit, nombre_completo, email, password_hash)
-          VALUES (?, ?, ?, ?, ?)
-        `)
-        const result = insertCliente.run(
-          body.clientName,
-          `30-${Date.now().toString().slice(-8)}-1`,
-          body.clientName,
-          `eventos@${body.clientName.toLowerCase().replace(/[^a-z0-9]/g, '') || 'cliente'}.com`,
-          'temp_hash',
+        const insertResult = await dbClient.execute(
+          `INSERT INTO cliente (razon_social, cuit, nombre_completo, email, password_hash)
+           VALUES (?, ?, ?, ?, ?)`,
+          [
+            body.clientName,
+            `30-${Date.now().toString().slice(-8)}-1`,
+            body.clientName,
+            `eventos@${body.clientName.toLowerCase().replace(/[^a-z0-9]/g, '') || 'cliente'}.com`,
+            'temp_hash',
+          ],
         )
-        idCliente = Number(result.lastInsertRowid)
+        idCliente = Number(insertResult.lastInsertId)
       }
 
       // 2. Reserva
       const totalPesos = (body.totalCents || 0) / 100
       const seguroPesos = (body.insuranceCents || 0) / 100
 
-      const insertReserva = db.prepare(`
-        INSERT INTO reserva (
+      const reservaResult = await dbClient.execute(
+        `INSERT INTO reserva (
           id_cliente, fecha_evento, hora_inicio, hora_fin, duracion_horas,
           cantidad_invitados, direccion_evento, distancia_km, evento_cancelado,
           estado_evento, estado_pago, notas_cocina, monto_total, monto_seguro
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-      `)
-
-      const reservaResult = insertReserva.run(
-        idCliente,
-        body.eventDate,
-        body.startTime || '19:30',
-        body.endTime || '22:30',
-        body.durationHours || 3.0,
-        body.guests || 50,
-        body.locationAddress || 'CABA',
-        body.distanceKm || 10.0,
-        0,
-        body.status || 'Señado / Confirmado',
-        body.paymentStatus || 'SEÑA_ABONADA',
-        body.kitchenNotes || '',
-        totalPesos,
-        seguroPesos,
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        [
+          idCliente,
+          body.eventDate,
+          body.startTime || '19:30',
+          body.endTime || '22:30',
+          body.durationHours || 3.0,
+          body.guests || 50,
+          body.locationAddress || 'CABA',
+          body.distanceKm || 10.0,
+          0,
+          body.status || 'Señado / Confirmado',
+          body.paymentStatus || 'SEÑA_ABONADA',
+          body.kitchenNotes || '',
+          totalPesos,
+          seguroPesos,
+        ],
       )
 
-      const idReserva = Number(reservaResult.lastInsertRowid)
+      const idReserva = Number(reservaResult.lastInsertId)
 
       // 3. Detalle de Estaciones
       if (Array.isArray(body.stationIds)) {
-        const getStation = db.prepare('SELECT id_estacion, precio_por_persona FROM estacion WHERE codigo = ?')
-        const insertDetalle = db.prepare(`
-          INSERT INTO detalle_reserva_estacion (id_reserva, id_estacion, subtotal_calculado)
-          VALUES (?, ?, ?)
-        `)
         for (const stationSlug of body.stationIds) {
-          const s = getStation.get(stationSlug) as any
+          const s = await dbClient.queryOne(
+            'SELECT id_estacion, precio_por_persona FROM estacion WHERE codigo = ?',
+            [stationSlug],
+          )
           if (s) {
-            const subtotal = s.precio_por_persona * (body.guests || 50)
-            insertDetalle.run(idReserva, s.id_estacion, subtotal)
+            const subtotal = Number(s.precio_por_persona) * (body.guests || 50)
+            await dbClient.execute(
+              `INSERT INTO detalle_reserva_estacion (id_reserva, id_estacion, subtotal_calculado)
+               VALUES (?, ?, ?)`,
+              [idReserva, s.id_estacion, subtotal],
+            )
           }
         }
       }
 
       // 4. Restricciones Alimentarias
       if (body.dietary) {
-        const insertRestriccion = db.prepare(`
-          INSERT INTO restriccion_alimentaria (id_reserva, tipo_restriccion, cantidad_personas, observaciones)
-          VALUES (?, ?, ?, ?)
-        `)
-        if (body.dietary.celiacos > 0)
-          insertRestriccion.run(idReserva, 'Celiaquía', body.dietary.celiacos, 'Menú celíaco')
-        if (body.dietary.vegetarianos > 0)
-          insertRestriccion.run(idReserva, 'Vegetarianos', body.dietary.vegetarianos, 'Menú vegetariano')
-        if (body.dietary.veganos > 0)
-          insertRestriccion.run(idReserva, 'Veganos', body.dietary.veganos, 'Menú vegano')
-        if (body.dietary.alergias)
-          insertRestriccion.run(idReserva, 'Alergias', 1, body.dietary.alergias)
+        if (body.dietary.celiacos > 0) {
+          await dbClient.execute(
+            `INSERT INTO restriccion_alimentaria (id_reserva, tipo_restriccion, cantidad_personas, observaciones)
+             VALUES (?, ?, ?, ?)`,
+            [idReserva, 'Celiaquía', body.dietary.celiacos, 'Menú celíaco'],
+          )
+        }
+        if (body.dietary.vegetarianos > 0) {
+          await dbClient.execute(
+            `INSERT INTO restriccion_alimentaria (id_reserva, tipo_restriccion, cantidad_personas, observaciones)
+             VALUES (?, ?, ?, ?)`,
+            [idReserva, 'Vegetarianos', body.dietary.vegetarianos, 'Menú vegetariano'],
+          )
+        }
+        if (body.dietary.veganos > 0) {
+          await dbClient.execute(
+            `INSERT INTO restriccion_alimentaria (id_reserva, tipo_restriccion, cantidad_personas, observaciones)
+             VALUES (?, ?, ?, ?)`,
+            [idReserva, 'Veganos', body.dietary.veganos, 'Menú vegano'],
+          )
+        }
+        if (body.dietary.alergias) {
+          await dbClient.execute(
+            `INSERT INTO restriccion_alimentaria (id_reserva, tipo_restriccion, cantidad_personas, observaciones)
+             VALUES (?, ?, ?, ?)`,
+            [idReserva, 'Alergias', 1, body.dietary.alergias],
+          )
+        }
       }
 
       // 5. Pago inicial (seña)
       if (body.depositCents > 0) {
-        const insertPago = db.prepare(`
-          INSERT INTO pago (id_reserva, tipo_pago, monto, pago_online, pago_completo, estado)
-          VALUES (?, ?, ?, ?, ?, ?)
-        `)
-        insertPago.run(idReserva, 'SEÑA', body.depositCents / 100, 1, 0, 'confirmado')
+        await dbClient.execute(
+          `INSERT INTO pago (id_reserva, tipo_pago, monto, pago_online, pago_completo, estado)
+           VALUES (?, ?, ?, ?, ?, ?)`,
+          [idReserva, 'SEÑA', body.depositCents / 100, 1, 0, 'confirmado'],
+        )
       }
 
-      const all = fetchAllEvents(db)
+      const all = await fetchAllEvents(dbClient)
       const created = all.find((e: any) => e.id === `EV-${idReserva}`)
       return sendJson(res, 201, { event: created })
     } catch (err: any) {
@@ -394,15 +422,16 @@ const server = createServer(async (req, res) => {
       const idReserva = Number(rawId)
       const body = await parseBody(req)
 
-      db.prepare(`
-        UPDATE reserva
-        SET
-          estado_evento = COALESCE(?, estado_evento),
-          estado_pago = COALESCE(?, estado_pago),
-          notas_cocina = COALESCE(?, notas_cocina),
-          fecha_actualizacion = CURRENT_TIMESTAMP
-        WHERE id_reserva = ?
-      `).run(body.status ?? null, body.paymentStatus ?? null, body.kitchenNotes ?? null, idReserva)
+      await dbClient.execute(
+        `UPDATE reserva
+         SET
+           estado_evento = COALESCE(?, estado_evento),
+           estado_pago = COALESCE(?, estado_pago),
+           notas_cocina = COALESCE(?, notas_cocina),
+           fecha_actualizacion = CURRENT_TIMESTAMP
+         WHERE id_reserva = ?`,
+        [body.status ?? null, body.paymentStatus ?? null, body.kitchenNotes ?? null, idReserva],
+      )
 
       return sendJson(res, 200, { success: true })
     } catch (err: any) {
@@ -417,12 +446,12 @@ const server = createServer(async (req, res) => {
       const input = (body.usernameOrEmail || '').trim().toLowerCase()
       const pass = body.pass || ''
 
-      // Credencial master admin/admin o admin/admin123
+      // Credencial / alias rápido para admin
       if (input === 'admin' && (pass === 'admin' || pass === 'admin123')) {
         const user = {
           id: 2,
           username: 'admin',
-          fullName: 'Coordinador Comercial',
+          fullName: 'Administrador',
           email: 'admin@smtcatering.com',
           role: 'admin' as const,
         }
@@ -430,7 +459,7 @@ const server = createServer(async (req, res) => {
           id: 2,
           role: 'admin',
           email: 'admin@smtcatering.com',
-          fullName: 'Coordinador Comercial',
+          fullName: 'Administrador',
           isClient: false,
         })
         return sendJson(
@@ -443,8 +472,12 @@ const server = createServer(async (req, res) => {
         )
       }
 
-      // Buscar en usuario_staff (validando password con hash seguro)
-      const staff = db.prepare('SELECT * FROM usuario_staff WHERE LOWER(email) = ? AND activo = 1').get(input) as any
+      // 1. Buscar en usuario_staff por email (si ingresó 'admin', busca admin@smtcatering.com)
+      const lookupEmail = input === 'admin' ? 'admin@smtcatering.com' : input
+      const staff = await dbClient.queryOne(
+        'SELECT * FROM usuario_staff WHERE LOWER(email) = ? AND activo = 1',
+        [lookupEmail],
+      )
       if (staff && verifyPassword(pass, staff.password_hash)) {
         const user = {
           id: staff.id_usuario,
@@ -470,11 +503,14 @@ const server = createServer(async (req, res) => {
         )
       }
 
-      // Buscar en cliente (validando password con hash seguro)
-      const cliente = db.prepare('SELECT * FROM cliente WHERE LOWER(email) = ?').get(input) as any
+      // 2. Buscar en cliente por email (validando password con hash seguro)
+      const cliente = await dbClient.queryOne('SELECT * FROM cliente WHERE LOWER(email) = ?', [input])
       if (cliente && verifyPassword(pass, cliente.password_hash)) {
         if (cliente.activo === 0 || cliente.activo === false) {
-          return sendJson(res, 403, { error: 'Su cuenta de usuario cliente se encuentra inhabilitada. Por favor, comuníquese con el equipo de SMT Catering.' })
+          return sendJson(res, 403, {
+            error:
+              'Su cuenta de usuario cliente se encuentra inhabilitada. Por favor, comuníquese con el equipo de SMT Catering.',
+          })
         }
 
         const user = {
@@ -544,12 +580,15 @@ const server = createServer(async (req, res) => {
       const email = (body.email || '').trim().toLowerCase()
 
       if (!email || !email.includes('@')) {
-        return sendJson(res, 400, { error: 'Email inválido' })
+        return sendJson(res, 400, { error: 'Debes proporcionar un email válido' })
       }
 
-      // Buscar en ambas tablas (staff y cliente)
-      const staff = db.prepare('SELECT email FROM usuario_staff WHERE LOWER(email) = ? AND activo = 1').get(email) as any
-      const cliente = db.prepare('SELECT email FROM cliente WHERE LOWER(email) = ?').get(email) as any
+      // Verificar si existe en staff o en cliente
+      const staff = await dbClient.queryOne(
+        'SELECT email FROM usuario_staff WHERE LOWER(email) = ? AND activo = 1',
+        [email],
+      )
+      const cliente = await dbClient.queryOne('SELECT email FROM cliente WHERE LOWER(email) = ?', [email])
 
       if (!staff && !cliente) {
         // Por seguridad, respondemos siempre con éxito para no revelar si el email existe
@@ -557,19 +596,24 @@ const server = createServer(async (req, res) => {
       }
 
       // Generar token temporal de 40 chars hex válido por 1 hora
-      const raw = Date.now().toString(36) + Math.random().toString(36).slice(2) + Math.random().toString(36).slice(2)
+      const raw =
+        Date.now().toString(36) +
+        Math.random().toString(36).slice(2) +
+        Math.random().toString(36).slice(2)
       const token = raw.slice(0, 40).padEnd(40, '0')
       const expiresAt = Date.now() + 60 * 60 * 1000 // 1 hora
 
       // Invalidar tokens previos para este email
-      db.prepare('DELETE FROM password_reset_tokens WHERE email = ?').run(email)
+      await dbClient.execute('DELETE FROM password_reset_tokens WHERE email = ?', [email])
 
       // Guardar nuevo token
-      db.prepare(
-        'INSERT INTO password_reset_tokens (email, token, expires_at) VALUES (?, ?, ?)',
-      ).run(email, token, expiresAt)
+      await dbClient.execute(
+        `INSERT INTO password_reset_tokens (email, token, expires_at, used)
+         VALUES (?, ?, ?, 0)`,
+        [email, token, expiresAt],
+      )
 
-      // En producción: enviar email con el token. Por ahora lo imprimimos en consola.
+      // En producción aquí se enviaría un email con el token.
       console.log(`\n🔑 [RESET PASSWORD] Token para ${email}: ${token}\n`)
 
       return sendJson(res, 200, { success: true })
@@ -596,15 +640,16 @@ const server = createServer(async (req, res) => {
         return sendJson(res, 400, { error: 'Las contraseñas no coinciden' })
       }
 
-      const row = db
-        .prepare('SELECT * FROM password_reset_tokens WHERE token = ? AND used = 0')
-        .get(token) as any
+      const row = await dbClient.queryOne(
+        'SELECT * FROM password_reset_tokens WHERE token = ? AND used = 0',
+        [token],
+      )
 
       if (!row) {
         return sendJson(res, 400, { error: 'Token inválido o ya utilizado' })
       }
-      if (Date.now() > row.expires_at) {
-        db.prepare('DELETE FROM password_reset_tokens WHERE token = ?').run(token)
+      if (Date.now() > Number(row.expires_at)) {
+        await dbClient.execute('DELETE FROM password_reset_tokens WHERE token = ?', [token])
         return sendJson(res, 400, { error: 'El token expiró. Solicitá uno nuevo.' })
       }
 
@@ -612,15 +657,19 @@ const server = createServer(async (req, res) => {
 
       // Actualizar contraseña con hash seguro scrypt
       const hashedPass = hashPassword(newPass)
-      const staffUpd = db
-        .prepare('UPDATE usuario_staff SET password_hash = ? WHERE LOWER(email) = ?')
-        .run(hashedPass, email)
+      const staffUpd = await dbClient.execute(
+        'UPDATE usuario_staff SET password_hash = ? WHERE LOWER(email) = ?',
+        [hashedPass, email],
+      )
       if (staffUpd.changes === 0) {
-        db.prepare('UPDATE cliente SET password_hash = ? WHERE LOWER(email) = ?').run(hashedPass, email)
+        await dbClient.execute('UPDATE cliente SET password_hash = ? WHERE LOWER(email) = ?', [
+          hashedPass,
+          email,
+        ])
       }
 
       // Marcar token como usado
-      db.prepare('UPDATE password_reset_tokens SET used = 1 WHERE token = ?').run(token)
+      await dbClient.execute('UPDATE password_reset_tokens SET used = 1 WHERE token = ?', [token])
 
       return sendJson(res, 200, { success: true })
     } catch (err: any) {
@@ -643,8 +692,7 @@ const server = createServer(async (req, res) => {
       // Validaciones básicas
       if (!razonSocial || razonSocial.length < 3)
         return sendJson(res, 400, { error: 'La razón social es requerida' })
-      if (!cuit)
-        return sendJson(res, 400, { error: 'El CUIT es requerido' })
+      if (!cuit) return sendJson(res, 400, { error: 'El CUIT es requerido' })
       if (!nombreCompleto || nombreCompleto.length < 2)
         return sendJson(res, 400, { error: 'El nombre del responsable es requerido' })
       if (!email || !email.includes('@'))
@@ -653,31 +701,25 @@ const server = createServer(async (req, res) => {
         return sendJson(res, 400, { error: 'La contraseña debe tener al menos 6 caracteres' })
 
       // Verificar duplicados
-      const emailExists = db.prepare('SELECT id_cliente FROM cliente WHERE LOWER(email) = ?').get(email) as any
+      const emailExists = await dbClient.queryOne('SELECT id_cliente FROM cliente WHERE LOWER(email) = ?', [
+        email,
+      ])
       if (emailExists)
         return sendJson(res, 409, { error: 'Ya existe una cuenta con ese email' })
 
-      const cuitExists = db.prepare('SELECT id_cliente FROM cliente WHERE cuit = ?').get(cuit) as any
+      const cuitExists = await dbClient.queryOne('SELECT id_cliente FROM cliente WHERE cuit = ?', [cuit])
       if (cuitExists)
         return sendJson(res, 409, { error: 'Ya existe una cuenta con ese CUIT' })
 
       // Insertar nuevo cliente con hash seguro scrypt
       const passHash = hashPassword(pass)
-      const stmt = db.prepare(`
-        INSERT INTO cliente (razon_social, cuit, nombre_completo, cargo_responsable, email, telefono, password_hash)
-        VALUES (?, ?, ?, ?, ?, ?, ?)
-      `)
-      const result = stmt.run(
-        razonSocial,
-        cuit,
-        nombreCompleto,
-        cargoResponsable || null,
-        email,
-        telefono || null,
-        passHash,
-      ) as any
+      const result = await dbClient.execute(
+        `INSERT INTO cliente (razon_social, cuit, nombre_completo, cargo_responsable, email, telefono, password_hash)
+         VALUES (?, ?, ?, ?, ?, ?, ?)`,
+        [razonSocial, cuit, nombreCompleto, cargoResponsable || null, email, telefono || null, passHash],
+      )
 
-      const idCliente = Number(result.lastInsertRowid)
+      const idCliente = Number(result.lastInsertId)
       const newCliente = {
         id: idCliente,
         username: email.split('@')[0],
@@ -695,7 +737,6 @@ const server = createServer(async (req, res) => {
         isClient: true,
       })
 
-      // Establecer sesión igual que en login
       return sendJson(
         res,
         201,
@@ -709,10 +750,10 @@ const server = createServer(async (req, res) => {
     }
   }
 
-  // 8. Perfil de Cliente — Obtener información personal y de empresa (Punto 4 ISSUES.md)
+  // 8. Perfil de Cliente — Obtener información personal y de empresa
   if (url.pathname === '/api/client/profile' && req.method === 'GET') {
     try {
-      const cliente = getAuthenticatedClient(req, db)
+      const cliente = await getAuthenticatedClient(req, dbClient)
       if (!cliente) {
         return sendJson(res, 401, { error: 'No autorizado o sesión no válida' })
       }
@@ -733,10 +774,10 @@ const server = createServer(async (req, res) => {
     }
   }
 
-  // 9. Perfil de Cliente — Actualizar datos de contacto (Punto 4 ISSUES.md)
+  // 9. Perfil de Cliente — Actualizar datos de contacto
   if (url.pathname === '/api/client/profile' && req.method === 'PUT') {
     try {
-      const cliente = getAuthenticatedClient(req, db)
+      const cliente = await getAuthenticatedClient(req, dbClient)
       if (!cliente) {
         return sendJson(res, 401, { error: 'No autorizado o sesión no válida' })
       }
@@ -750,36 +791,45 @@ const server = createServer(async (req, res) => {
       const direccionLegal = (body.direccionLegal ?? cliente.direccion_legal ?? '').trim()
 
       if (!razonSocial || !nombreCompleto || !email) {
-        return sendJson(res, 400, { error: 'Razón social, nombre del responsable y email son obligatorios' })
+        return sendJson(res, 400, {
+          error: 'Razón social, nombre del responsable y email son obligatorios',
+        })
       }
 
       // Si cambió el email, validar que no esté en uso por otro usuario
       if (email !== cliente.email.toLowerCase()) {
-        const staffDup = db.prepare('SELECT email FROM usuario_staff WHERE LOWER(email) = ?').get(email)
-        const clienteDup = db.prepare('SELECT email FROM cliente WHERE LOWER(email) = ? AND id_cliente != ?').get(email, cliente.id_cliente)
+        const staffDup = await dbClient.queryOne(
+          'SELECT email FROM usuario_staff WHERE LOWER(email) = ?',
+          [email],
+        )
+        const clienteDup = await dbClient.queryOne(
+          'SELECT email FROM cliente WHERE LOWER(email) = ? AND id_cliente != ?',
+          [email, cliente.id_cliente],
+        )
         if (staffDup || clienteDup) {
           return sendJson(res, 409, { error: 'El email ya se encuentra registrado por otra cuenta' })
         }
       }
 
-      db.prepare(`
-        UPDATE cliente
-        SET
-          razon_social = ?,
-          nombre_completo = ?,
-          cargo_responsable = ?,
-          email = ?,
-          telefono = ?,
-          direccion_legal = ?
-        WHERE id_cliente = ?
-      `).run(
-        razonSocial,
-        nombreCompleto,
-        cargoResponsable || null,
-        email,
-        telefono || null,
-        direccionLegal || null,
-        cliente.id_cliente,
+      await dbClient.execute(
+        `UPDATE cliente
+         SET
+           razon_social = ?,
+           nombre_completo = ?,
+           cargo_responsable = ?,
+           email = ?,
+           telefono = ?,
+           direccion_legal = ?
+         WHERE id_cliente = ?`,
+        [
+          razonSocial,
+          nombreCompleto,
+          cargoResponsable || null,
+          email,
+          telefono || null,
+          direccionLegal || null,
+          cliente.id_cliente,
+        ],
       )
 
       return sendJson(res, 200, {
@@ -799,10 +849,10 @@ const server = createServer(async (req, res) => {
     }
   }
 
-  // 10. Perfil de Cliente — Actualizar contraseña (Punto 4 ISSUES.md)
+  // 10. Perfil de Cliente — Actualizar contraseña
   if (url.pathname === '/api/client/change-password' && req.method === 'POST') {
     try {
-      const cliente = getAuthenticatedClient(req, db)
+      const cliente = await getAuthenticatedClient(req, dbClient)
       if (!cliente) {
         return sendJson(res, 401, { error: 'No autorizado o sesión no válida' })
       }
@@ -812,7 +862,9 @@ const server = createServer(async (req, res) => {
       const newPassword = (body.newPassword || '').trim()
 
       if (!currentPassword || !newPassword) {
-        return sendJson(res, 400, { error: 'Debes completar la contraseña actual y la nueva contraseña' })
+        return sendJson(res, 400, {
+          error: 'Debes completar la contraseña actual y la nueva contraseña',
+        })
       }
       if (newPassword.length < 6) {
         return sendJson(res, 400, { error: 'La nueva contraseña debe tener al menos 6 caracteres' })
@@ -823,15 +875,18 @@ const server = createServer(async (req, res) => {
       }
 
       const newPassHash = hashPassword(newPassword)
-      db.prepare('UPDATE cliente SET password_hash = ? WHERE id_cliente = ?').run(newPassHash, cliente.id_cliente)
+      await dbClient.execute('UPDATE cliente SET password_hash = ? WHERE id_cliente = ?', [
+        newPassHash,
+        cliente.id_cliente,
+      ])
 
-      return sendJson(res, 200, { success: true, message: 'Contraseña actualizada con éxito' })
+      return sendJson(res, 200, { success: true, message: 'Contraseña actualizada correctamente' })
     } catch (err: any) {
       return sendJson(res, 500, { error: err.message })
     }
   }
 
-  // 11. Gestión de Usuarios — Listar Colaboradores (Staff) y Clientes B2B
+  // 11. Gestión de Usuarios — Listar Colaboradores Internos y Clientes
   if (url.pathname === '/api/users' && req.method === 'GET') {
     const authUser = getAuthUser(req)
     if (!authUser || (authUser.role !== 'superadmin' && authUser.role !== 'admin')) {
@@ -839,17 +894,17 @@ const server = createServer(async (req, res) => {
     }
 
     try {
-      const staff = db.prepare(`
+      const staff = await dbClient.query(`
         SELECT id_usuario, nombre_completo, email, rol, activo, fecha_creacion
         FROM usuario_staff
         ORDER BY id_usuario ASC
-      `).all()
+      `)
 
-      const clients = db.prepare(`
+      const clients = await dbClient.query(`
         SELECT id_cliente, razon_social, cuit, nombre_completo, cargo_responsable, email, telefono, direccion_legal, fecha_aniversario, activo, fecha_creacion
         FROM cliente
         ORDER BY id_cliente ASC
-      `).all()
+      `)
 
       return sendJson(res, 200, { staff, clients })
     } catch (err: any) {
@@ -882,27 +937,36 @@ const server = createServer(async (req, res) => {
         return sendJson(res, 400, { error: 'Rol inválido. Opciones válidas: superadmin, admin, cocina.' })
       }
       if (rol === 'superadmin' && authUser.role !== 'superadmin') {
-        return sendJson(res, 403, { error: 'Solo el Superadministrador puede crear usuarios con rol superadmin.' })
+        return sendJson(res, 403, {
+          error: 'Solo el Superadministrador puede crear usuarios con rol superadmin.',
+        })
       }
 
-      const staffExists = db.prepare('SELECT id_usuario FROM usuario_staff WHERE LOWER(email) = ?').get(email)
-      const clientExists = db.prepare('SELECT id_cliente FROM cliente WHERE LOWER(email) = ?').get(email)
+      const staffExists = await dbClient.queryOne(
+        'SELECT id_usuario FROM usuario_staff WHERE LOWER(email) = ?',
+        [email],
+      )
+      const clientExists = await dbClient.queryOne('SELECT id_cliente FROM cliente WHERE LOWER(email) = ?', [
+        email,
+      ])
       if (staffExists || clientExists) {
         return sendJson(res, 409, { error: 'El email ya se encuentra registrado por otra cuenta.' })
       }
 
       const passwordHash = hashPassword(password)
-      const insertRes = db.prepare(`
-        INSERT INTO usuario_staff (nombre_completo, email, password_hash, rol, activo)
-        VALUES (?, ?, ?, ?, ?)
-      `).run(nombreCompleto, email, passwordHash, rol, activo)
+      const insertRes = await dbClient.execute(
+        `INSERT INTO usuario_staff (nombre_completo, email, password_hash, rol, activo)
+         VALUES (?, ?, ?, ?, ?)`,
+        [nombreCompleto, email, passwordHash, rol, activo],
+      )
 
-      const newId = (insertRes as any).lastInsertRowid || (insertRes as any).id
-      const created = db.prepare(`
-        SELECT id_usuario, nombre_completo, email, rol, activo, fecha_creacion
-        FROM usuario_staff
-        WHERE id_usuario = ?
-      `).get(newId)
+      const newId = Number(insertRes.lastInsertId)
+      const created = await dbClient.queryOne(
+        `SELECT id_usuario, nombre_completo, email, rol, activo, fecha_creacion
+         FROM usuario_staff
+         WHERE id_usuario = ?`,
+        [newId],
+      )
 
       return sendJson(res, 201, { success: true, user: created })
     } catch (err: any) {
@@ -920,35 +984,50 @@ const server = createServer(async (req, res) => {
 
     try {
       const targetId = Number(matchStaffId[1])
-      const existing = db.prepare('SELECT * FROM usuario_staff WHERE id_usuario = ?').get(targetId) as any
+      const existing = await dbClient.queryOne('SELECT * FROM usuario_staff WHERE id_usuario = ?', [
+        targetId,
+      ])
       if (!existing) {
         return sendJson(res, 404, { error: 'Usuario no encontrado.' })
       }
 
       if (existing.rol === 'superadmin' && authUser.role !== 'superadmin') {
-        return sendJson(res, 403, { error: 'Solo un Superadministrador puede modificar a otro Superadministrador.' })
+        return sendJson(res, 403, {
+          error: 'Solo un Superadministrador puede modificar a otro Superadministrador.',
+        })
       }
 
       const body = await parseBody(req)
-      const nombreCompleto = body.nombreCompleto !== undefined ? String(body.nombreCompleto).trim() : existing.nombre_completo
-      const email = body.email !== undefined ? String(body.email).trim().toLowerCase() : existing.email
+      const nombreCompleto =
+        body.nombreCompleto !== undefined
+          ? String(body.nombreCompleto).trim()
+          : body.nombre_completo !== undefined
+          ? String(body.nombre_completo).trim()
+          : existing.nombre_completo
+
+      const email =
+        body.email !== undefined ? String(body.email).trim().toLowerCase() : existing.email
       const rol = body.rol !== undefined ? String(body.rol).trim().toLowerCase() : existing.rol
-      const activo = body.activo !== undefined ? (body.activo === 0 || body.activo === false ? 0 : 1) : existing.activo
+      const activo =
+        body.activo !== undefined ? (Number(body.activo) === 0 ? 0 : 1) : existing.activo
 
       if (rol && !['superadmin', 'admin', 'cocina'].includes(rol)) {
-        return sendJson(res, 400, { error: 'Rol inválido.' })
+        return sendJson(res, 400, { error: 'Rol inválido. Opciones válidas: superadmin, admin, cocina.' })
       }
       if (rol === 'superadmin' && authUser.role !== 'superadmin') {
-        return sendJson(res, 403, { error: 'Solo un Superadministrador puede promover un usuario a superadmin.' })
-      }
-
-      if (authUser.id === targetId && activo === 0) {
-        return sendJson(res, 400, { error: 'No puedes desactivar tu propia cuenta mientras estás conectado.' })
+        return sendJson(res, 403, {
+          error: 'Solo un Superadministrador puede promover un usuario a superadmin.',
+        })
       }
 
       if (email !== existing.email.toLowerCase()) {
-        const staffDup = db.prepare('SELECT id_usuario FROM usuario_staff WHERE LOWER(email) = ? AND id_usuario != ?').get(email, targetId)
-        const clientDup = db.prepare('SELECT id_cliente FROM cliente WHERE LOWER(email) = ?').get(email)
+        const staffDup = await dbClient.queryOne(
+          'SELECT id_usuario FROM usuario_staff WHERE LOWER(email) = ? AND id_usuario != ?',
+          [email, targetId],
+        )
+        const clientDup = await dbClient.queryOne('SELECT id_cliente FROM cliente WHERE LOWER(email) = ?', [
+          email,
+        ])
         if (staffDup || clientDup) {
           return sendJson(res, 409, { error: 'El email ya se encuentra en uso por otra cuenta.' })
         }
@@ -959,17 +1038,19 @@ const server = createServer(async (req, res) => {
         newPasswordHash = hashPassword(String(body.password).trim())
       }
 
-      db.prepare(`
-        UPDATE usuario_staff
-        SET nombre_completo = ?, email = ?, password_hash = ?, rol = ?, activo = ?
-        WHERE id_usuario = ?
-      `).run(nombreCompleto, email, newPasswordHash, rol, activo, targetId)
+      await dbClient.execute(
+        `UPDATE usuario_staff
+         SET nombre_completo = ?, email = ?, password_hash = ?, rol = ?, activo = ?
+         WHERE id_usuario = ?`,
+        [nombreCompleto, email, newPasswordHash, rol, activo, targetId],
+      )
 
-      const updated = db.prepare(`
-        SELECT id_usuario, nombre_completo, email, rol, activo, fecha_creacion
-        FROM usuario_staff
-        WHERE id_usuario = ?
-      `).get(targetId)
+      const updated = await dbClient.queryOne(
+        `SELECT id_usuario, nombre_completo, email, rol, activo, fecha_creacion
+         FROM usuario_staff
+         WHERE id_usuario = ?`,
+        [targetId],
+      )
 
       return sendJson(res, 200, { success: true, user: updated })
     } catch (err: any) {
@@ -981,16 +1062,18 @@ const server = createServer(async (req, res) => {
   if (matchStaffId && req.method === 'DELETE') {
     const authUser = getAuthUser(req)
     if (!authUser || authUser.role !== 'superadmin') {
-      return sendJson(res, 403, { error: 'Solo el Superadministrador puede eliminar usuarios definitivamente.' })
+      return sendJson(res, 403, {
+        error: 'Solo el Superadministrador puede eliminar usuarios definitivamente.',
+      })
     }
 
     try {
       const targetId = Number(matchStaffId[1])
-      if (authUser.id === targetId) {
-        return sendJson(res, 400, { error: 'No puedes eliminar tu propia cuenta.' })
+      if (targetId === authUser.id) {
+        return sendJson(res, 400, { error: 'No puedes eliminar tu propia cuenta de Superadministrador.' })
       }
 
-      db.prepare('DELETE FROM usuario_staff WHERE id_usuario = ?').run(targetId)
+      await dbClient.execute('DELETE FROM usuario_staff WHERE id_usuario = ?', [targetId])
       return sendJson(res, 200, { success: true, message: 'Usuario eliminado correctamente.' })
     } catch (err: any) {
       return sendJson(res, 500, { error: err.message })
@@ -1007,24 +1090,41 @@ const server = createServer(async (req, res) => {
 
     try {
       const targetId = Number(matchClientId[1])
-      const existing = db.prepare('SELECT * FROM cliente WHERE id_cliente = ?').get(targetId) as any
+      const existing = await dbClient.queryOne('SELECT * FROM cliente WHERE id_cliente = ?', [targetId])
       if (!existing) {
         return sendJson(res, 404, { error: 'Cliente no encontrado.' })
       }
 
       const body = await parseBody(req)
-      const razonSocial = body.razonSocial !== undefined ? String(body.razonSocial).trim() : existing.razon_social
+      const razonSocial =
+        body.razonSocial !== undefined ? String(body.razonSocial).trim() : existing.razon_social
       const cuit = body.cuit !== undefined ? String(body.cuit).trim() : existing.cuit
-      const nombreCompleto = body.nombreCompleto !== undefined ? String(body.nombreCompleto).trim() : existing.nombre_completo
-      const cargoResponsable = body.cargoResponsable !== undefined ? String(body.cargoResponsable).trim() : existing.cargo_responsable
-      const email = body.email !== undefined ? String(body.email).trim().toLowerCase() : existing.email
-      const telefono = body.telefono !== undefined ? String(body.telefono).trim() : existing.telefono
-      const direccionLegal = body.direccionLegal !== undefined ? String(body.direccionLegal).trim() : existing.direccion_legal
-      const activo = body.activo !== undefined ? (Number(body.activo) === 0 ? 0 : 1) : (existing.activo !== undefined ? existing.activo : 1)
+      const nombreCompleto =
+        body.nombreCompleto !== undefined
+          ? String(body.nombreCompleto).trim()
+          : existing.nombre_completo
+      const cargoResponsable =
+        body.cargoResponsable !== undefined
+          ? String(body.cargoResponsable).trim()
+          : existing.cargo_responsable
+      const email =
+        body.email !== undefined ? String(body.email).trim().toLowerCase() : existing.email
+      const telefono =
+        body.telefono !== undefined ? String(body.telefono).trim() : existing.telefono
+      const direccionLegal =
+        body.direccionLegal !== undefined ? String(body.direccionLegal).trim() : existing.direccion_legal
+      const activo =
+        body.activo !== undefined ? (Number(body.activo) === 0 ? 0 : 1) : existing.activo
 
       if (email !== existing.email.toLowerCase()) {
-        const staffDup = db.prepare('SELECT id_usuario FROM usuario_staff WHERE LOWER(email) = ?').get(email)
-        const clientDup = db.prepare('SELECT id_cliente FROM cliente WHERE LOWER(email) = ? AND id_cliente != ?').get(email, targetId)
+        const staffDup = await dbClient.queryOne(
+          'SELECT id_usuario FROM usuario_staff WHERE LOWER(email) = ?',
+          [email],
+        )
+        const clientDup = await dbClient.queryOne(
+          'SELECT id_cliente FROM cliente WHERE LOWER(email) = ? AND id_cliente != ?',
+          [email, targetId],
+        )
         if (staffDup || clientDup) {
           return sendJson(res, 409, { error: 'El email ya está en uso por otro usuario.' })
         }
@@ -1035,17 +1135,30 @@ const server = createServer(async (req, res) => {
         newPasswordHash = hashPassword(String(body.password).trim())
       }
 
-      db.prepare(`
-        UPDATE cliente
-        SET razon_social = ?, cuit = ?, nombre_completo = ?, cargo_responsable = ?, email = ?, telefono = ?, direccion_legal = ?, password_hash = ?, activo = ?
-        WHERE id_cliente = ?
-      `).run(razonSocial, cuit, nombreCompleto, cargoResponsable, email, telefono, direccionLegal, newPasswordHash, activo, targetId)
+      await dbClient.execute(
+        `UPDATE cliente
+         SET razon_social = ?, cuit = ?, nombre_completo = ?, cargo_responsable = ?, email = ?, telefono = ?, direccion_legal = ?, password_hash = ?, activo = ?
+         WHERE id_cliente = ?`,
+        [
+          razonSocial,
+          cuit,
+          nombreCompleto,
+          cargoResponsable,
+          email,
+          telefono,
+          direccionLegal,
+          newPasswordHash,
+          activo,
+          targetId,
+        ],
+      )
 
-      const updated = db.prepare(`
-        SELECT id_cliente, razon_social, cuit, nombre_completo, cargo_responsable, email, telefono, direccion_legal, fecha_aniversario, activo, fecha_creacion
-        FROM cliente
-        WHERE id_cliente = ?
-      `).get(targetId)
+      const updated = await dbClient.queryOne(
+        `SELECT id_cliente, razon_social, cuit, nombre_completo, cargo_responsable, email, telefono, direccion_legal, fecha_aniversario, activo, fecha_creacion
+         FROM cliente
+         WHERE id_cliente = ?`,
+        [targetId],
+      )
 
       return sendJson(res, 200, { success: true, client: updated })
     } catch (err: any) {
@@ -1063,33 +1176,37 @@ const server = createServer(async (req, res) => {
   sendJson(res, 404, { error: 'Ruta no encontrada', path: url.pathname })
 })
 
-server.listen(PORT, '0.0.0.0', () => {
-  // Crear tabla de tokens de reset si no existe y asegurar columna activo en cliente
-  const db = getDatabase()
-  ensureResetTokensTable(db)
-  ensureClientActiveColumn(db)
+// En entorno de ejecución local estándar, levantar servidor HTTP en puerto asignado
+if (process.env.VERCEL !== '1') {
+  server.listen(PORT, '0.0.0.0', async () => {
+    const dbClient = getDatabase()
+    await ensureResetTokensTable(dbClient)
+    await ensureClientActiveColumn(dbClient)
 
-  console.log(`🚀 SMT Catering Server corriendo en http://localhost:${PORT}`)
-  console.log(`📡 Endpoints disponibles en SQLite (MER_v3):`)
-  console.log(`   - GET  http://localhost:${PORT}/api/health`)
-  console.log(`   - GET  http://localhost:${PORT}/api/tariffs`)
-  console.log(`   - PUT  http://localhost:${PORT}/api/tariffs/:id`)
-  console.log(`   - POST http://localhost:${PORT}/api/tariffs/bulk`)
-  console.log(`   - GET  http://localhost:${PORT}/api/events`)
-  console.log(`   - POST http://localhost:${PORT}/api/events`)
-  console.log(`   - PATCH http://localhost:${PORT}/api/events/:id`)
-  console.log(`   - POST http://localhost:${PORT}/api/auth/login`)
-  console.log(`   - GET  http://localhost:${PORT}/api/auth/me`)
-  console.log(`   - POST http://localhost:${PORT}/api/auth/logout`)
-  console.log(`   - POST http://localhost:${PORT}/api/auth/forgot-password`)
-  console.log(`   - POST http://localhost:${PORT}/api/auth/reset-password`)
-  console.log(`   - POST http://localhost:${PORT}/api/auth/register`)
-  console.log(`   - GET  http://localhost:${PORT}/api/client/profile`)
-  console.log(`   - PUT  http://localhost:${PORT}/api/client/profile`)
-  console.log(`   - POST http://localhost:${PORT}/api/client/change-password`)
-  console.log(`   - GET  http://localhost:${PORT}/api/users`)
-  console.log(`   - POST http://localhost:${PORT}/api/users/staff`)
-  console.log(`   - PATCH http://localhost:${PORT}/api/users/staff/:id`)
-  console.log(`   - DELETE http://localhost:${PORT}/api/users/staff/:id`)
-  console.log(`   - PATCH http://localhost:${PORT}/api/users/clients/:id`)
-})
+    console.log(`🚀 SMT Catering Server corriendo en http://localhost:${PORT}`)
+    console.log(`📡 Base de Datos: Neon PostgreSQL Cloud`)
+    console.log(`   - GET  http://localhost:${PORT}/api/health`)
+    console.log(`   - GET  http://localhost:${PORT}/api/tariffs`)
+    console.log(`   - PUT  http://localhost:${PORT}/api/tariffs/:id`)
+    console.log(`   - POST http://localhost:${PORT}/api/tariffs/bulk`)
+    console.log(`   - GET  http://localhost:${PORT}/api/events`)
+    console.log(`   - POST http://localhost:${PORT}/api/events`)
+    console.log(`   - PATCH http://localhost:${PORT}/api/events/:id`)
+    console.log(`   - POST http://localhost:${PORT}/api/auth/login`)
+    console.log(`   - GET  http://localhost:${PORT}/api/auth/me`)
+    console.log(`   - POST http://localhost:${PORT}/api/auth/logout`)
+    console.log(`   - POST http://localhost:${PORT}/api/auth/forgot-password`)
+    console.log(`   - POST http://localhost:${PORT}/api/auth/reset-password`)
+    console.log(`   - POST http://localhost:${PORT}/api/auth/register`)
+    console.log(`   - GET  http://localhost:${PORT}/api/client/profile`)
+    console.log(`   - PUT  http://localhost:${PORT}/api/client/profile`)
+    console.log(`   - POST http://localhost:${PORT}/api/client/change-password`)
+    console.log(`   - GET  http://localhost:${PORT}/api/users`)
+    console.log(`   - POST http://localhost:${PORT}/api/users/staff`)
+    console.log(`   - PATCH http://localhost:${PORT}/api/users/staff/:id`)
+    console.log(`   - DELETE http://localhost:${PORT}/api/users/staff/:id`)
+    console.log(`   - PATCH http://localhost:${PORT}/api/users/clients/:id`)
+  })
+}
+
+export default server

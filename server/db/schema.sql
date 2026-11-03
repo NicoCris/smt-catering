@@ -1,12 +1,11 @@
 -- =====================================================================
--- SMT Catering — Esquema de Base de Datos SQLite (Basado en MER_v3.xml)
+-- SMT Catering — Esquema de Base de Datos PostgreSQL (MER_v3.xml)
+-- Compatible con Neon Cloud Database
 -- =====================================================================
-
-PRAGMA foreign_keys = ON;
 
 -- 1. CLIENTE (EMPRESA B2B)
 CREATE TABLE IF NOT EXISTS cliente (
-  id_cliente INTEGER PRIMARY KEY AUTOINCREMENT,
+  id_cliente SERIAL PRIMARY KEY,
   razon_social VARCHAR(80) NOT NULL,
   cuit VARCHAR(15) UNIQUE NOT NULL,
   nombre_completo VARCHAR(50) NOT NULL,
@@ -17,49 +16,49 @@ CREATE TABLE IF NOT EXISTS cliente (
   fecha_aniversario DATE,
   password_hash VARCHAR(255) NOT NULL,
   activo INTEGER NOT NULL DEFAULT 1,
-  fecha_creacion TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+  fecha_creacion TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
 );
 
 -- 2. USUARIO (STAFF INTERNO: admin, cocina, superadmin)
 CREATE TABLE IF NOT EXISTS usuario_staff (
-  id_usuario INTEGER PRIMARY KEY AUTOINCREMENT,
+  id_usuario SERIAL PRIMARY KEY,
   nombre_completo VARCHAR(50) NOT NULL,
   email VARCHAR(100) UNIQUE NOT NULL,
   password_hash VARCHAR(255) NOT NULL,
-  rol TEXT NOT NULL CHECK(rol IN ('superadmin', 'admin', 'cocina')),
+  rol VARCHAR(20) NOT NULL CHECK(rol IN ('superadmin', 'admin', 'cocina')),
   activo INTEGER NOT NULL DEFAULT 1,
-  fecha_creacion TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+  fecha_creacion TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
 );
 
 -- 3. ESTACION / ISLA GASTRONOMICA
 CREATE TABLE IF NOT EXISTS estacion (
-  id_estacion INTEGER PRIMARY KEY AUTOINCREMENT,
+  id_estacion SERIAL PRIMARY KEY,
   codigo VARCHAR(20) UNIQUE NOT NULL,
   nombre VARCHAR(50) NOT NULL,
-  tipo_comida TEXT NOT NULL DEFAULT 'salado', -- salado / dulce
+  tipo_comida VARCHAR(20) NOT NULL DEFAULT 'salado', -- salado / dulce
   descripcion VARCHAR(150),
   precio_por_persona DECIMAL(10,2) NOT NULL
 );
 
 -- 4. RESERVA DE EVENTO
 CREATE TABLE IF NOT EXISTS reserva (
-  id_reserva INTEGER PRIMARY KEY AUTOINCREMENT,
+  id_reserva SERIAL PRIMARY KEY,
   id_cliente INTEGER NOT NULL REFERENCES cliente(id_cliente) ON DELETE RESTRICT,
-  fecha_evento DATE NOT NULL,                   -- Viernes, Sábado o Domingo
-  hora_inicio TIME NOT NULL,                    -- Entre 19:00 y 21:00 hs
-  hora_fin TIME NOT NULL,                       -- Hasta las 00:00 hs
+  fecha_evento DATE NOT NULL,
+  hora_inicio TIME NOT NULL,
+  hora_fin TIME NOT NULL,
   duracion_horas REAL NOT NULL CHECK(duracion_horas <= 3.0),
   cantidad_invitados INTEGER NOT NULL CHECK(cantidad_invitados >= 50 AND cantidad_invitados <= 120),
   direccion_evento VARCHAR(150) NOT NULL,
   distancia_km DECIMAL(4,2) CHECK(distancia_km <= 20.0),
-  evento_cancelado INTEGER NOT NULL DEFAULT 0,  -- 0: Activo, 1: Cancelado
-  estado_evento TEXT NOT NULL DEFAULT 'Presupuestado',
-  estado_pago TEXT NOT NULL DEFAULT 'SEÑA_PENDIENTE',
+  evento_cancelado INTEGER NOT NULL DEFAULT 0,
+  estado_evento VARCHAR(30) NOT NULL DEFAULT 'Presupuestado',
+  estado_pago VARCHAR(30) NOT NULL DEFAULT 'SEÑA_PENDIENTE',
   notas_cocina TEXT DEFAULT '',
   monto_total DECIMAL(10,2) NOT NULL,
   monto_seguro DECIMAL(10,2) NOT NULL DEFAULT 0.00,
-  fecha_creacion TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-  fecha_actualizacion TIMESTAMP,
+  fecha_creacion TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+  fecha_actualizacion TIMESTAMPTZ,
   actualizado_por VARCHAR(50)
 );
 
@@ -73,42 +72,51 @@ CREATE TABLE IF NOT EXISTS detalle_reserva_estacion (
 
 -- 6. RESTRICCIONES ALIMENTARIAS (Normalizada 1 a N)
 CREATE TABLE IF NOT EXISTS restriccion_alimentaria (
-  id_restriccion INTEGER PRIMARY KEY AUTOINCREMENT,
+  id_restriccion SERIAL PRIMARY KEY,
   id_reserva INTEGER NOT NULL REFERENCES reserva(id_reserva) ON DELETE CASCADE,
-  tipo_restriccion VARCHAR(50) NOT NULL,       -- Celiacos, Vegetarianos, Veganos, Alergias, Otros
+  tipo_restriccion VARCHAR(50) NOT NULL,
   cantidad_personas INTEGER NOT NULL DEFAULT 1,
   observaciones VARCHAR(100)
 );
 
 -- 7. PAGOS Y LIQUIDACIONES
 CREATE TABLE IF NOT EXISTS pago (
-  id_pago INTEGER PRIMARY KEY AUTOINCREMENT,
+  id_pago SERIAL PRIMARY KEY,
   id_reserva INTEGER NOT NULL REFERENCES reserva(id_reserva) ON DELETE CASCADE,
   tipo_pago VARCHAR(25) NOT NULL CHECK(tipo_pago IN ('SEÑA', 'SALDO', 'TOTAL')),
   monto DECIMAL(10,2) NOT NULL,
   pago_online INTEGER NOT NULL DEFAULT 1,
   pago_completo INTEGER NOT NULL DEFAULT 0,
-  fecha_pago TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-  estado TEXT NOT NULL CHECK(estado IN ('pendiente', 'confirmado', 'cancelado'))
+  fecha_pago TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+  estado VARCHAR(20) NOT NULL CHECK(estado IN ('pendiente', 'confirmado', 'cancelado'))
 );
 
--- 8. COMANDAS DE PRODUCCION (Desdobladas por estación/brigada de cocina)
+-- 8. COMANDAS DE PRODUCCION
 CREATE TABLE IF NOT EXISTS comanda_produccion (
-  id_comanda INTEGER PRIMARY KEY AUTOINCREMENT,
+  id_comanda SERIAL PRIMARY KEY,
   id_reserva INTEGER NOT NULL REFERENCES reserva(id_reserva) ON DELETE CASCADE,
   id_estacion INTEGER NOT NULL REFERENCES estacion(id_estacion),
-  observaciones TEXT,                          -- Contenido estructurado JSON
-  fecha_emision TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-  fecha_actualizacion TIMESTAMP,
+  observaciones TEXT,
+  fecha_emision TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+  fecha_actualizacion TIMESTAMPTZ,
   actualizado_por VARCHAR(50)
 );
 
 -- 9. TARIFAS BASE Y SEGURO (Configuración general del cotizador)
 CREATE TABLE IF NOT EXISTS tarifas (
-  id TEXT PRIMARY KEY,
-  label TEXT NOT NULL,
-  category TEXT NOT NULL CHECK(category IN ('base', 'station', 'extra', 'insurance')),
+  id VARCHAR(50) PRIMARY KEY,
+  label VARCHAR(100) NOT NULL,
+  category VARCHAR(20) NOT NULL CHECK(category IN ('base', 'station', 'extra', 'insurance')),
   price_per_guest_cents INTEGER NOT NULL DEFAULT 0,
   fixed_cents INTEGER NOT NULL DEFAULT 0,
   is_active INTEGER NOT NULL DEFAULT 1
+);
+
+-- 10. TOKENS DE RECUPERACIÓN DE CONTRASEÑA
+CREATE TABLE IF NOT EXISTS password_reset_tokens (
+  id SERIAL PRIMARY KEY,
+  email VARCHAR(100) NOT NULL,
+  token VARCHAR(64) NOT NULL UNIQUE,
+  expires_at BIGINT NOT NULL,
+  used INTEGER NOT NULL DEFAULT 0
 );
