@@ -99,6 +99,19 @@ function sendJson(
 }
 
 function parseBody(req: IncomingMessage): Promise<any> {
+  // Soporte para entornos Serverless (Vercel) donde req.body ya viene parseado
+  if ((req as any).body !== undefined && (req as any).body !== null) {
+    const b = (req as any).body
+    if (typeof b === 'object') return Promise.resolve(b)
+    if (typeof b === 'string') {
+      try {
+        return Promise.resolve(JSON.parse(b))
+      } catch {
+        return Promise.resolve({})
+      }
+    }
+  }
+
   return new Promise((resolve) => {
     let data = ''
     req.on('data', (chunk) => {
@@ -216,7 +229,14 @@ export async function app(req: IncomingMessage, res: ServerResponse) {
     return
   }
 
-  const url = new URL(req.url || '/', `http://${req.headers.host || 'localhost'}`)
+  // Detectar la URL original preservando el path real en Vercel
+  const rawUrl =
+    req.headers['x-forwarded-uri'] ||
+    req.headers['x-original-url'] ||
+    req.headers['x-matched-path'] ||
+    req.url ||
+    '/'
+  const url = new URL(String(rawUrl), `http://${req.headers.host || 'localhost'}`)
   const dbClient = getDatabase()
 
   // 1. Health check y diagnóstico de Base de Datos
