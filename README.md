@@ -6,18 +6,26 @@ Plataforma de cotización en tiempo real, gestión de eventos y comandas de coci
 
 ## 🚀 Inicio Rápido (Cómo levantar el proyecto)
 
-### 1. Instalar dependencias
+### 1. Variables de Entorno
+Asegurarse de tener el archivo `.env` configurado en la raíz con la conexión a **Neon PostgreSQL**:
+```env
+DATABASE_URL=postgresql://usuario:password@ep-ejemplo.aws.neon.tech/neondb?sslmode=require
+PORT=3001
+COOKIE_SECRET=smt-catering-super-secret-key-2026
+```
+
+### 2. Instalar dependencias
 ```bash
 npm install
 ```
 
-### 2. Inicializar la Base de Datos local
-Crea el archivo SQLite local (`server/db/smt.sqlite`) y carga usuarios, estaciones y eventos de prueba:
+### 3. Inicializar / Migrar la Base de Datos en Neon
+Aplica el esquema DDL (`server/db/schema.sql`) y siembra los datos iniciales de prueba (`server/db/seed.sql`) en Neon Cloud:
 ```bash
-npm run db:reset
+npm run db:setup
 ```
 
-### 3. Levantar la aplicación
+### 4. Levantar la aplicación en desarrollo local
 Abrir **dos terminales**:
 
 - **Terminal 1:** Levanta el Backend (API) en el puerto `3001`
@@ -36,23 +44,26 @@ Abrir en el navegador: **http://localhost:5173**
 
 ## 👥 Usuarios de Prueba para Iniciar Sesión
 
-| Rol | Usuario | Contraseña | ¿Qué puede ver? |
+| Rol | Usuario / Email | Contraseña | ¿Qué puede ver? |
 |---|---|---|---|
-| **Admin** | `admin` | `admin123` | Dashboard, cotizador, edición de eventos y tarifas |
-| **Cocina** | `cocina` | `admin123` | Calendario y comandas de producción (sin precios) |
-| **Cliente** | `cliente` | `admin123` | Cotizador interactivo y "Mis Eventos" |
-| **Superadmin** | `superadmin` | `admin123` | Panel general y gestión de usuarios |
+| **Admin** | `admin` (o `admin@smtcatering.com`) | `admin123` | Dashboard, cotizador, edición de eventos, tarifas y usuarios |
+| **Superadmin** | `superadmin@smtcatering.com` | `admin123` | Control total, eliminaciones permanentes y gestión de staff |
+| **Cocina** | `cocina@smtcatering.com` | `admin123` | Calendario de eventos y comandas de producción (sin precios) |
+| **Cliente B2B** | `eventos@aluar.com.ar` | `admin123` | Cotizador interactivo, solicitudes y perfil de empresa |
+
+> 💡 **Nota sobre el usuario Admin:** En la pantalla de *Gestión de Usuarios* (`/usuarios`), el usuario administrador figura registrado con el nombre **Administrador** y el correo **admin@smtcatering.com**. Por comodidad de desarrollo, podés iniciar sesión escribiendo `admin` o `admin@smtcatering.com` indistintamente. Los demás roles requieren su email completo.
 
 ---
 
 ## 🛠️ Comandos útiles
 
 ```bash
-npm run db:reset   # Reinicia la base de datos SQLite y recarga datos de prueba (seed)
+npm run db:setup   # Aplica DDL y datos de prueba (seed) en Neon PostgreSQL
 npm run server     # Inicia el servidor backend (http://localhost:3001)
 npm run dev        # Inicia el frontend Vite (http://localhost:5173)
-npm run lint       # Revisa el código con oxlint
-npm run typecheck  # Verifica tipos con TypeScript (tsc)
+npm run build      # Compila TypeScript y construye el bundle de producción
+npm run lint       # Revisa el código con oxlint (0 errores garantizados)
+npm run typecheck  # Verifica tipos con TypeScript (tsc -b)
 npm run smoke      # Ejecuta prueba de renderizado de vistas
 ```
 
@@ -67,13 +78,13 @@ npm run lint && npm run typecheck
 
 ```
 smt-catering/
-├── src/                # Frontend (React 19, Tailwind CSS 4, React Router)
+├── src/                # Frontend (React 19, Tailwind CSS 4, React Router 7)
 │   ├── components/     # Componentes visuales reutilizables (Botones, Modales, Tablas)
-│   ├── features/       # Pantallas agrupadas por funcionalidad (cotizador, dashboard, etc.)
-│   └── stores/         # Estado global (Zustand)
-├── server/             # Backend (Node.js)
-│   ├── db/             # Base de datos SQLite (schema.sql, seed.sql, reset.mjs)
-│   └── modules/        # Rutas y controladores (auth, events, quotation, etc.)
+│   ├── features/       # Pantallas por módulo (cotizador, eventos, comandas, tarifas, usuarios)
+│   └── stores/         # Estado global de sesión y autenticación (Zustand)
+├── server/             # Backend (Node.js nativo + pg)
+│   ├── db/             # Base de datos Neon PostgreSQL (schema.sql, seed.sql, client.ts)
+│   └── lib/            # Utilidades de seguridad (JWT criptográfico, hash scrypt)
 ├── shared/             # Contratos compartidos entre front y back (tipos TS y esquemas Zod)
 └── docs/               # Documentación interna (ISSUES.md y diagrama MER_v3.xml)
 ```

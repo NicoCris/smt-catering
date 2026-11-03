@@ -1,98 +1,126 @@
 /**
- * Cliente de Base de Datos Unificado para SMT Catering.
- * Soporte dual inteligente:
- * - Si DATABASE_URL está definido en el entorno (.env) -> Conecta a Neon PostgreSQL (Cloud).
- * - Si no está definido -> Conecta a SQLite local nativo (Node 22) para desarrollo offline.
+ * Cliente de Base de Datos PostgreSQL (Neon) para SMT Catering.
+ * Conexión centralizada asíncrona mediante pg.Pool.
  */
 import 'dotenv/config'
 import pg from 'pg'
-import { DatabaseSync } from 'node:sqlite'
-import { resolve, dirname } from 'node:path'
-import { fileURLToPath } from 'node:url'
 
-const { Pool } = pg
-const __dirname = dirname(fileURLToPath(import.meta.url))
+const { Pool, types } = pg
 
-export interface DbQueryInterface {
-  isPostgres: boolean
-  query: (sql: string, params?: any[]) => Promise<any[]>
-  execute: (sql: string, params?: any[]) => Promise<{ lastInsertId?: number; changes?: number }>
-  getPool?: () => pg.Pool | null
-  getSqlite?: () => DatabaseSync | null
+// Configuración de parsers de PostgreSQL para máxima compatibilidad:
+// 1. OID 1082: DATE -> Devolver como string 'YYYY-MM-DD' directo (evita desfases de UTC/zona horaria)
+types.setTypeParser(1082, (val: string) => val)
+// 2. OID 1700: NUMERIC / DECIMAL -> Devolver como float numérico para operaciones aritméticas
+types.setTypeParser(1700, (val: string) => (val === null ? null : parseFloat(val)))
+
+const connectionString = process.env.DATABASE_URL
+
+if (!connectionString) {
+  console.warn(
+    '⚠️ [DB WARNING] No se encontró DATABASE_URL en el entorno (.env). Verifique su configuración de Neon PostgreSQL.',
+  )
 }
 
-let dbInterfaceInstance: DbQueryInterface | null = null
+export const pool = new Pool({
+  connectionString,
+  ssl: {
+    rejectUnauthorized: false,
+  },
+})
 
-function convertSqlitePlaceholdersToPg(sql: string): string {
+/**
+ * Convierte placeholders posicionales tipo SQLite (?) a sintaxis PostgreSQL ($1, $2, ...)
+ */
+export function convertPlaceholders(sql: string): string {
   let paramIndex = 1
   return sql.replace(/\?/g, () => `$${paramIndex++}`)
 }
 
-export function getDatabaseAdapter(): DbQueryInterface {
-  if (dbInterfaceInstance) {
-    return dbInterfaceInstance
-  }
-
-  const databaseUrl = process.env.DATABASE_URL
-
-  if (databaseUrl && (databaseUrl.startsWith('postgres://') || databaseUrl.startsWith('postgresql://'))) {
-    const pool = new Pool({
-      connectionString: databaseUrl,
-      ssl: {
-        rejectUnauthorized: false,
-      },
-    })
-
-    dbInterfaceInstance = {
-      isPostgres: true,
-      async query(sql: string, params: any[] = []) {
-        const pgSql = convertSqlitePlaceholdersToPg(sql)
-        const res = await pool.query(pgSql, params)
-        return res.rows
-      },
-      async execute(sql: string, params: any[] = []) {
-        const pgSql = convertSqlitePlaceholdersToPg(sql)
-        const res = await pool.query(pgSql, params)
-        const lastInsertId = res.rows[0]?.id || res.rows[0]?.id_cliente || res.rows[0]?.id_reserva
-        return {
-          lastInsertId: lastInsertId ? Number(lastInsertId) : undefined,
-          changes: res.rowCount ?? 0,
-        }
-      },
-      getPool: () => pool,
-      getSqlite: () => null,
-    }
-
-    return dbInterfaceInstance
-  }
-
-  // Fallback SQLite local
-  const DB_PATH = resolve(__dirname, 'smt.sqlite')
-  const sqlite = new DatabaseSync(DB_PATH)
-
-  dbInterfaceInstance = {
-    isPostgres: false,
-    async query(sql: string, params: any[] = []) {
-      const stmt = sqlite.prepare(sql)
-      return stmt.all(...params) as any[]
-    },
-    async execute(sql: string, params: any[] = []) {
-      const stmt = sqlite.prepare(sql)
-      const res = stmt.run(...params) as any
-      return {
-        lastInsertId: res.lastInsertRowid ? Number(res.lastInsertRowid) : undefined,
-        changes: res.changes,
-      }
-    },
-    getPool: () => null,
-    getSqlite: () => sqlite,
-  }
-
-  return dbInterfaceInstance
+export interface QueryResult<T = any> {
+  rows: T[]
+  rowCount: number
 }
 
-// Mantener compatibilidad hacia atrás
-export function getDatabase(): DatabaseSync {
-  const DB_PATH = resolve(__dirname, 'smt.sqlite')
-  return new DatabaseSync(DB_PATH)
+export const db = {
+  /**
+   * Ejecuta una consulta SELECT y retorna un array con todas las filas encontradas.
+   */
+  async query<T = any>(sql: string, params: any[] = []): Promise<T[]> {
+    const pgSql = convertPlaceholders(sql)
+    const res = await pool.query(pgSql, params)
+    return res.rows as T[]
+  },
+
+  /**
+   * Ejecuta una consulta SELECT y retorna una única fila o null si no hay coincidencias.
+   */
+  async queryOne<T = any>(sql: string, params: any[] = []): Promise<T | null> {
+    const rows = await this.query<T>(sql, params)
+    return rows[0] ?? null
+  },
+
+  /**
+   * Ejecuta una sentencia INSERT, UPDATE o DELETE.
+   * Si es INSERT y no contiene RETURNING, añade RETURNING * para obtener el ID autogenerado.
+   */
+  async execute(
+    sql: string,
+    params: any[] = [],
+  ): Promise<{
+    lastInsertId?: number
+    lastInsertRowid?: number
+    changes: number
+    row?: any
+  }> {
+    let pgSql = convertPlaceholders(sql)
+    const isInsert = /^\s*INSERT\s+INTO/i.test(pgSql)
+    if (isInsert && !/RETURNING/i.test(pgSql)) {
+      pgSql += ' RETURNING *'
+    }
+
+    const res = await pool.query(pgSql, params)
+    const firstRow = res.rows[0]
+    let lastInsertId: number | undefined
+
+    if (firstRow) {
+      const candidate =
+        firstRow.id ||
+        firstRow.id_cliente ||
+        firstRow.id_usuario ||
+        firstRow.id_reserva ||
+        firstRow.id_pago ||
+        firstRow.id_restriccion ||
+        firstRow.id_comanda ||
+        firstRow.id_estacion ||
+        Object.values(firstRow)[0]
+
+      if (candidate !== undefined && !isNaN(Number(candidate))) {
+        lastInsertId = Number(candidate)
+      }
+    }
+
+    const changes = res.rowCount ?? 0
+
+    return {
+      lastInsertId,
+      lastInsertRowid: lastInsertId,
+      changes,
+      row: firstRow,
+    }
+  },
+
+  /**
+   * Ejecuta sentencias DDL (CREATE TABLE, ALTER, etc.)
+   */
+  async exec(sql: string): Promise<void> {
+    await pool.query(sql)
+  },
+
+  getPool(): pg.Pool {
+    return pool
+  },
+}
+
+export function getDatabase() {
+  return db
 }
