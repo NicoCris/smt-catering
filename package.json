@@ -5,7 +5,8 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "tsc -b && vite build",
+    "build": "tsc -b && vite build && npm run build:api",
+    "build:api": "esbuild server/vercel.ts --bundle --platform=node --format=esm --packages=external --outfile=api/index.js",
     "lint": "oxlint",
     "typecheck": "tsc -b --noEmit",
     "smoke": "node scripts/smoke.mjs",
@@ -40,6 +41,7 @@
     "zustand": "^5.0.15"
   },
   "devDependencies": {
+    "esbuild": "^0.28.2",
     "@tailwindcss/vite": "^4.3.3",
     "@types/node": "^24.13.3",
     "@types/pg": "^8.23.1",

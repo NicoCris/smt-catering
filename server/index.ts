@@ -229,14 +229,7 @@ export async function app(req: IncomingMessage, res: ServerResponse) {
     return
   }
 
-  // Detectar la URL original preservando el path real en Vercel
-  const rawUrl =
-    req.headers['x-forwarded-uri'] ||
-    req.headers['x-original-url'] ||
-    req.headers['x-matched-path'] ||
-    req.url ||
-    '/'
-  const url = new URL(String(rawUrl), `http://${req.headers.host || 'localhost'}`)
+  const url = new URL(req.url || '/', `http://${req.headers.host || 'localhost'}`)
   const dbClient = getDatabase()
 
   // 1. Health check y diagnóstico de Base de Datos
