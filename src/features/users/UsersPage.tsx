@@ -8,10 +8,12 @@ import {
   Search,
   Edit2,
   Trash2,
-  CheckCircle2,
   Mail,
   Phone,
   Power,
+  KeyRound,
+  UserCheck,
+  UserX,
 } from 'lucide-react'
 
 import { PageHeader } from '@/components/layout/AppShell'
@@ -23,14 +25,16 @@ import { api } from '@/lib/api'
 import { useAuthStore } from '@/stores/authStore'
 import { StaffModal, type StaffItem } from './StaffModal'
 import { ClientEditModal, type ClientItem } from './ClientEditModal'
+import { ClientPasswordModal } from './ClientPasswordModal'
 
 export function UsersPage() {
   const currentAuthUser = useAuthStore((s) => s.user)
   const currentAuthRole = currentAuthUser?.role
 
-  const [activeTab, setActiveTab] = useState<'staff' | 'clients'>('staff')
+  const [activeTab, setActiveTab] = useState<'staff' | 'clients' | 'client_users'>('staff')
   const [searchTerm, setSearchTerm] = useState('')
   const [roleFilter, setRoleFilter] = useState<'todos' | 'superadmin' | 'admin' | 'cocina'>('todos')
+  const [clientStatusFilter, setClientStatusFilter] = useState<'todos' | 'activos' | 'inactivos'>('todos')
 
   const [staff, setStaff] = useState<StaffItem[]>([])
   const [clients, setClients] = useState<ClientItem[]>([])
@@ -43,6 +47,9 @@ export function UsersPage() {
 
   const [isClientModalOpen, setIsClientModalOpen] = useState(false)
   const [editingClient, setEditingClient] = useState<ClientItem | null>(null)
+
+  const [isPasswordModalOpen, setIsPasswordModalOpen] = useState(false)
+  const [passwordTargetClient, setPasswordTargetClient] = useState<ClientItem | null>(null)
 
   const reloadUsers = async () => {
     setLoading(true)
@@ -91,7 +98,7 @@ export function UsersPage() {
     })
   }, [staff, searchTerm, roleFilter])
 
-  // Filtrado de clientes
+  // Filtrado de empresas clientes
   const filteredClients = useMemo(() => {
     return clients.filter((c) => {
       const term = searchTerm.toLowerCase()
@@ -103,6 +110,26 @@ export function UsersPage() {
       )
     })
   }, [clients, searchTerm])
+
+  // Filtrado de usuarios clientes
+  const filteredClientUsers = useMemo(() => {
+    return clients.filter((c) => {
+      const term = searchTerm.toLowerCase()
+      const matchesSearch =
+        c.nombre_completo.toLowerCase().includes(term) ||
+        c.email.toLowerCase().includes(term) ||
+        c.razon_social.toLowerCase().includes(term) ||
+        c.cuit.toLowerCase().includes(term)
+
+      const isActivo = c.activo === 1 || c.activo === undefined
+      const matchesStatus =
+        clientStatusFilter === 'todos' ||
+        (clientStatusFilter === 'activos' && isActivo) ||
+        (clientStatusFilter === 'inactivos' && !isActivo)
+
+      return matchesSearch && matchesStatus
+    })
+  }, [clients, searchTerm, clientStatusFilter])
 
   // Toggle rápido de estado activo/inactivo para staff
   const handleToggleStaffStatus = async (user: StaffItem) => {
@@ -116,6 +143,28 @@ export function UsersPage() {
       )
     } catch (err: any) {
       alert(err.message || 'No se pudo cambiar el estado del usuario.')
+    }
+  }
+
+  // Toggle rápido de estado habilitado/inhabilitado para cliente
+  const handleToggleClientStatus = async (client: ClientItem) => {
+    const currentActive = client.activo === 1 || client.activo === undefined
+    const newStatus = currentActive ? 0 : 1
+    const accion = newStatus === 1 ? 'habilitar' : 'inhabilitar'
+
+    if (!confirm(`¿Estás seguro de ${accion} el acceso al portal para "${client.nombre_completo}" (${client.email})?`)) {
+      return
+    }
+
+    try {
+      await api.patch(`/api/users/clients/${client.id_cliente}`, { activo: newStatus })
+      setClients((prev) =>
+        prev.map((item) =>
+          item.id_cliente === client.id_cliente ? { ...item, activo: newStatus } : item,
+        ),
+      )
+    } catch (err: any) {
+      alert(err.message || 'No se pudo cambiar el estado del usuario cliente.')
     }
   }
 
@@ -145,7 +194,7 @@ export function UsersPage() {
         )
       case 'admin':
         return (
-          <span className="inline-flex items-center gap-1 rounded-pill bg-sky-500/10 px-2.5 py-0.5 text-xs font-semibold text-sky-700 dark:text-sky-300 border border-sky-500/20">
+          <span className="inline-flex items-center gap-1 rounded-pill bg-blue-500/10 px-2.5 py-0.5 text-xs font-semibold text-blue-700 dark:text-blue-300 border border-blue-500/20">
             <Users className="w-3 h-3" />
             Administrador
           </span>
@@ -154,7 +203,7 @@ export function UsersPage() {
         return (
           <span className="inline-flex items-center gap-1 rounded-pill bg-amber-500/10 px-2.5 py-0.5 text-xs font-semibold text-amber-700 dark:text-amber-300 border border-amber-500/20">
             <ChefHat className="w-3 h-3" />
-            Chef Cocina
+            Cocina / Jefe Prod.
           </span>
         )
       default:
@@ -166,7 +215,7 @@ export function UsersPage() {
     <>
       <PageHeader
         title="Gestión de Usuarios"
-        description="Supervisión de colaboradores internos y empresas clientes del sistema."
+        description="Administración de cuentas internas de staff y usuarios clientes corporativos B2B"
         actions={
           activeTab === 'staff' ? (
             <Button
@@ -174,147 +223,150 @@ export function UsersPage() {
                 setEditingStaff(null)
                 setIsStaffModalOpen(true)
               }}
-              className="gap-2"
+              className="flex items-center gap-2"
             >
               <UserPlus className="w-4 h-4" />
               Nuevo Colaborador
             </Button>
-          ) : null
+          ) : undefined
         }
       />
 
-      {/* Grid de KPIs de usuarios */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
-        <div className="rounded-xl border border-hairline bg-canvas p-4 shadow-sm">
-          <div className="flex items-center gap-3">
-            <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-sky-500/10 text-sky-600">
-              <Users className="w-5 h-5" />
-            </div>
-            <div>
-              <p className="text-xs text-ink-mute">Staff Total</p>
-              <p className="text-xl font-bold text-ink">{staff.length}</p>
-            </div>
-          </div>
+      {error && (
+        <div className="mb-6 rounded-xl bg-state-danger-bg p-4 text-sm text-state-danger border border-state-danger/20 flex items-center justify-between">
+          <span>{error}</span>
+          <Button variant="secondary" size="sm" onClick={reloadUsers}>
+            Reintentar
+          </Button>
         </div>
+      )}
 
-        <div className="rounded-xl border border-hairline bg-canvas p-4 shadow-sm">
-          <div className="flex items-center gap-3">
-            <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-emerald-500/10 text-emerald-600">
-              <CheckCircle2 className="w-5 h-5" />
-            </div>
-            <div>
-              <p className="text-xs text-ink-mute">Staff Activo</p>
-              <p className="text-xl font-bold text-ink">{staff.filter((s) => s.activo).length}</p>
-            </div>
-          </div>
-        </div>
+      {/* Selector de Pestañas */}
+      <div className="flex border-b border-hairline mb-6 gap-6">
+        <button
+          type="button"
+          onClick={() => {
+            setActiveTab('staff')
+            setSearchTerm('')
+          }}
+          className={`pb-3 text-sm font-medium flex items-center gap-2 transition-colors border-b-2 -mb-px ${
+            activeTab === 'staff'
+              ? 'border-primary text-primary font-semibold'
+              : 'border-transparent text-ink-mute hover:text-ink'
+          }`}
+        >
+          <Shield className="w-4 h-4" />
+          Equipo Interno (Staff)
+          <span className="ml-1 rounded-full bg-canvas-soft px-2 py-0.5 text-xs text-ink-secondary">
+            {staff.length}
+          </span>
+        </button>
 
-        <div className="rounded-xl border border-hairline bg-canvas p-4 shadow-sm">
-          <div className="flex items-center gap-3">
-            <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-amber-500/10 text-amber-600">
-              <ChefHat className="w-5 h-5" />
-            </div>
-            <div>
-              <p className="text-xs text-ink-mute">Cocina</p>
-              <p className="text-xl font-bold text-ink">{staff.filter((s) => s.rol === 'cocina').length}</p>
-            </div>
-          </div>
-        </div>
+        <button
+          type="button"
+          onClick={() => {
+            setActiveTab('clients')
+            setSearchTerm('')
+          }}
+          className={`pb-3 text-sm font-medium flex items-center gap-2 transition-colors border-b-2 -mb-px ${
+            activeTab === 'clients'
+              ? 'border-primary text-primary font-semibold'
+              : 'border-transparent text-ink-mute hover:text-ink'
+          }`}
+        >
+          <Building2 className="w-4 h-4" />
+          Clientes Corporativos
+          <span className="ml-1 rounded-full bg-canvas-soft px-2 py-0.5 text-xs text-ink-secondary">
+            {clients.length}
+          </span>
+        </button>
 
-        <div className="rounded-xl border border-hairline bg-canvas p-4 shadow-sm">
-          <div className="flex items-center gap-3">
-            <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-indigo-500/10 text-indigo-600">
-              <Building2 className="w-5 h-5" />
-            </div>
-            <div>
-              <p className="text-xs text-ink-mute">Clientes B2B</p>
-              <p className="text-xl font-bold text-ink">{clients.length}</p>
-            </div>
-          </div>
-        </div>
+        <button
+          type="button"
+          onClick={() => {
+            setActiveTab('client_users')
+            setSearchTerm('')
+          }}
+          className={`pb-3 text-sm font-medium flex items-center gap-2 transition-colors border-b-2 -mb-px ${
+            activeTab === 'client_users'
+              ? 'border-primary text-primary font-semibold'
+              : 'border-transparent text-ink-mute hover:text-ink'
+          }`}
+        >
+          <KeyRound className="w-4 h-4" />
+          Usuarios Clientes (Accesos)
+          <span className="ml-1 rounded-full bg-canvas-soft px-2 py-0.5 text-xs text-ink-secondary">
+            {clients.length}
+          </span>
+        </button>
       </div>
 
-      {/* Tabs de navegación */}
-      <div className="flex items-center justify-between border-b border-hairline mb-6 gap-4 flex-wrap">
-        <div className="flex gap-2">
-          <button
-            type="button"
-            onClick={() => setActiveTab('staff')}
-            className={`pb-3 px-3 text-sm font-medium border-b-2 transition-colors flex items-center gap-2 ${
+      {/* Barra de Filtros y Búsqueda */}
+      <div className="flex flex-col sm:flex-row gap-3 mb-6 items-center justify-between">
+        <div className="relative w-full sm:w-80">
+          <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-ink-mute" />
+          <Input
+            placeholder={
               activeTab === 'staff'
-                ? 'border-primary text-primary'
-                : 'border-transparent text-ink-mute hover:text-ink'
-            }`}
-          >
-            <Users className="w-4 h-4" />
-            Equipo Interno ({staff.length})
-          </button>
-          <button
-            type="button"
-            onClick={() => setActiveTab('clients')}
-            className={`pb-3 px-3 text-sm font-medium border-b-2 transition-colors flex items-center gap-2 ${
-              activeTab === 'clients'
-                ? 'border-primary text-primary'
-                : 'border-transparent text-ink-mute hover:text-ink'
-            }`}
-          >
-            <Building2 className="w-4 h-4" />
-            Clientes Corporativos ({clients.length})
-          </button>
+                ? 'Buscar colaborador o email…'
+                : activeTab === 'clients'
+                ? 'Buscar por empresa, CUIT o contacto…'
+                : 'Buscar usuario cliente, email o empresa…'
+            }
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            className="pl-9 text-sm w-full"
+          />
         </div>
 
-        {/* Barra de búsqueda y filtros */}
-        <div className="flex items-center gap-2 mb-2">
-          <div className="relative w-64">
-            <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-ink-mute" />
-            <Input
-              type="text"
-              placeholder={activeTab === 'staff' ? 'Buscar por nombre o email…' : 'Buscar empresa, CUIT o contacto…'}
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="pl-9 h-9 text-xs"
-            />
-          </div>
-
-          {activeTab === 'staff' && (
+        {activeTab === 'staff' && (
+          <div className="flex items-center gap-2 w-full sm:w-auto">
+            <span className="text-xs text-ink-mute whitespace-nowrap">Rol:</span>
             <select
               value={roleFilter}
               onChange={(e) => setRoleFilter(e.target.value as any)}
-              className="h-9 rounded-md border border-hairline bg-canvas px-2.5 text-xs text-ink focus:outline-none focus:ring-1 focus:ring-primary"
+              className="text-xs rounded-lg border border-hairline bg-canvas px-3 py-2 text-ink shadow-sm focus:outline-none focus:ring-1 focus:ring-primary"
             >
               <option value="todos">Todos los roles</option>
               <option value="superadmin">Superadmin</option>
               <option value="admin">Administrador</option>
-              <option value="cocina">Chef Cocina</option>
+              <option value="cocina">Cocina</option>
             </select>
-          )}
-        </div>
+          </div>
+        )}
+
+        {activeTab === 'client_users' && (
+          <div className="flex items-center gap-2 w-full sm:w-auto">
+            <span className="text-xs text-ink-mute whitespace-nowrap">Estado:</span>
+            <select
+              value={clientStatusFilter}
+              onChange={(e) => setClientStatusFilter(e.target.value as any)}
+              className="text-xs rounded-lg border border-hairline bg-canvas px-3 py-2 text-ink shadow-sm focus:outline-none focus:ring-1 focus:ring-primary"
+            >
+              <option value="todos">Todos los estados</option>
+              <option value="activos">Habilitados</option>
+              <option value="inactivos">Inhabilitados</option>
+            </select>
+          </div>
+        )}
       </div>
 
-      {/* Error state */}
-      {error && (
-        <div className="mb-6 rounded-lg bg-state-danger-bg p-4 text-sm text-state-danger border border-state-danger/20">
-          {error}
-        </div>
-      )}
-
-      {/* Loading state */}
+      {/* Contenido según pestaña activa */}
       {loading ? (
-        <div className="py-16 text-center text-sm text-ink-mute">
-          Cargando directorio de usuarios…
-        </div>
+        <div className="py-12 text-center text-ink-mute">Cargando directorio de usuarios…</div>
       ) : activeTab === 'staff' ? (
-        /* TAB 1: STAFF INTERNO */
+        /* TAB 1: EQUIPO INTERNO (STAFF) */
         filteredStaff.length === 0 ? (
           <div className="py-12 text-center text-ink-mute rounded-xl border border-hairline bg-canvas">
-            No se encontraron miembros de staff con los criterios de búsqueda.
+            No se encontraron colaboradores que coincidan con la búsqueda.
           </div>
         ) : (
           <div className="rounded-xl border border-hairline bg-canvas overflow-hidden shadow-sm">
             <Table>
               <THead>
                 <TR>
-                  <TH>Colaborador</TH>
+                  <TH>Nombre y Apellido</TH>
+                  <TH>Email de Acceso</TH>
                   <TH>Rol Asignado</TH>
                   <TH>Estado</TH>
                   <TH className="text-right">Acciones</TH>
@@ -323,42 +375,61 @@ export function UsersPage() {
               <TBody>
                 {filteredStaff.map((user) => {
                   const isCurrentLogged = currentAuthUser?.id === user.id_usuario
-                  const isUserActive = Boolean(user.activo)
-
                   return (
                     <TR key={user.id_usuario}>
                       <TD>
-                        <div className="flex flex-col">
-                          <span className="font-medium text-ink flex items-center gap-1.5">
-                            {user.nombre_completo}
-                            {isCurrentLogged && (
-                              <span className="text-[10px] text-primary bg-primary-subdued px-1.5 py-0.2 rounded font-normal">
-                                Tú
-                              </span>
-                            )}
-                          </span>
-                          <span className="text-xs text-ink-mute flex items-center gap-1">
-                            <Mail className="w-3 h-3" />
-                            {user.email}
-                          </span>
+                        <div className="flex items-center gap-2.5">
+                          <div className="flex h-8 w-8 items-center justify-center rounded-full bg-primary-subdued text-primary-deep text-xs font-semibold">
+                            {user.nombre_completo.charAt(0).toUpperCase()}
+                          </div>
+                          <div className="flex flex-col">
+                            <span className="font-medium text-ink flex items-center gap-1.5">
+                              {user.nombre_completo}
+                              {isCurrentLogged && (
+                                <span className="text-[10px] bg-canvas-soft px-1.5 py-0.5 rounded text-ink-mute">
+                                  Tú
+                                </span>
+                              )}
+                            </span>
+                          </div>
                         </div>
+                      </TD>
+                      <TD>
+                        <span className="text-xs text-ink-secondary font-mono">{user.email}</span>
                       </TD>
                       <TD>{renderRoleBadge(user.rol)}</TD>
                       <TD>
-                        <button
-                          type="button"
-                          onClick={() => handleToggleStaffStatus(user)}
-                          disabled={isCurrentLogged}
-                          className={`inline-flex items-center gap-1.5 rounded-pill px-2.5 py-1 text-xs font-medium transition-colors ${
-                            isUserActive
-                              ? 'bg-state-ok-bg text-state-ok hover:bg-state-ok-bg/80'
-                              : 'bg-state-neutral-bg text-state-neutral hover:bg-state-neutral-bg/80'
-                          } ${isCurrentLogged ? 'opacity-70 cursor-not-allowed' : 'cursor-pointer'}`}
-                          title={isCurrentLogged ? 'No puedes desactivarte a ti mismo' : 'Clic para cambiar estado'}
-                        >
-                          <Power className="w-3 h-3" />
-                          {isUserActive ? 'Activo' : 'Inactivo'}
-                        </button>
+                        <div className="flex items-center gap-2">
+                          <span
+                            className={`inline-flex items-center gap-1 text-xs font-medium px-2 py-0.5 rounded-full ${
+                              user.activo
+                                ? 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border border-emerald-500/20'
+                                : 'bg-rose-500/10 text-rose-700 dark:text-rose-400 border border-rose-500/20'
+                            }`}
+                          >
+                            <span
+                              className={`w-1.5 h-1.5 rounded-full ${
+                                user.activo ? 'bg-emerald-500' : 'bg-rose-500'
+                              }`}
+                            />
+                            {user.activo ? 'Activo' : 'Inactivo'}
+                          </span>
+
+                          {!isCurrentLogged && (
+                            <button
+                              type="button"
+                              onClick={() => handleToggleStaffStatus(user)}
+                              className="p-1 text-ink-mute hover:text-ink transition-colors rounded hover:bg-canvas-soft"
+                              title={user.activo ? 'Desactivar acceso' : 'Activar acceso'}
+                            >
+                              <Power
+                                className={`w-3.5 h-3.5 ${
+                                  user.activo ? 'text-ink-mute' : 'text-emerald-600'
+                                }`}
+                              />
+                            </button>
+                          )}
+                        </div>
                       </TD>
                       <TD className="text-right">
                         <div className="flex items-center justify-end gap-1">
@@ -369,7 +440,7 @@ export function UsersPage() {
                               setIsStaffModalOpen(true)
                             }}
                             className="p-1.5 rounded-md text-ink-mute hover:text-primary hover:bg-canvas-soft transition-colors"
-                            title="Editar colaborador"
+                            title="Editar usuario"
                           >
                             <Edit2 className="w-4 h-4" />
                           </button>
@@ -393,8 +464,8 @@ export function UsersPage() {
             </Table>
           </div>
         )
-      ) : (
-        /* TAB 2: CLIENTES B2B */
+      ) : activeTab === 'clients' ? (
+        /* TAB 2: CLIENTES CORPORATIVOS (EMPRESAS B2B) */
         filteredClients.length === 0 ? (
           <div className="py-12 text-center text-ink-mute rounded-xl border border-hairline bg-canvas">
             No se encontraron empresas clientes registradas.
@@ -455,13 +526,124 @@ export function UsersPage() {
                           setIsClientModalOpen(true)
                         }}
                         className="p-1.5 rounded-md text-ink-mute hover:text-primary hover:bg-canvas-soft transition-colors"
-                        title="Editar datos del cliente"
+                        title="Editar datos de la empresa"
                       >
                         <Edit2 className="w-4 h-4" />
                       </button>
                     </TD>
                   </TR>
                 ))}
+              </TBody>
+            </Table>
+          </div>
+        )
+      ) : (
+        /* TAB 3: USUARIOS CLIENTES (ACCESOS Y PASSWORDS) */
+        filteredClientUsers.length === 0 ? (
+          <div className="py-12 text-center text-ink-mute rounded-xl border border-hairline bg-canvas">
+            No se encontraron usuarios clientes que coincidan con la búsqueda.
+          </div>
+        ) : (
+          <div className="rounded-xl border border-hairline bg-canvas overflow-hidden shadow-sm">
+            <Table>
+              <THead>
+                <TR>
+                  <TH>Usuario / Responsable</TH>
+                  <TH>Empresa Asociada</TH>
+                  <TH>Email de Acceso</TH>
+                  <TH>Estado del Acceso</TH>
+                  <TH className="text-right">Acciones de Cuenta</TH>
+                </TR>
+              </THead>
+              <TBody>
+                {filteredClientUsers.map((client) => {
+                  const isActivo = client.activo === 1 || client.activo === undefined
+                  return (
+                    <TR key={client.id_cliente}>
+                      <TD>
+                        <div className="flex items-center gap-2.5">
+                          <div className="flex h-8 w-8 items-center justify-center rounded-full bg-emerald-500/10 text-emerald-700 text-xs font-semibold">
+                            {client.nombre_completo.charAt(0).toUpperCase()}
+                          </div>
+                          <div className="flex flex-col">
+                            <span className="font-medium text-ink">{client.nombre_completo}</span>
+                            {client.cargo_responsable && (
+                              <span className="text-xs text-ink-mute">{client.cargo_responsable}</span>
+                            )}
+                          </div>
+                        </div>
+                      </TD>
+                      <TD>
+                        <div className="flex flex-col">
+                          <span className="text-sm font-medium text-ink">{client.razon_social}</span>
+                          <span className="text-xs text-ink-mute font-mono">CUIT: {client.cuit}</span>
+                        </div>
+                      </TD>
+                      <TD>
+                        <span className="text-xs text-ink-secondary font-mono flex items-center gap-1.5">
+                          <Mail className="w-3.5 h-3.5 text-ink-mute" />
+                          {client.email}
+                        </span>
+                      </TD>
+                      <TD>
+                        <div className="flex items-center gap-2">
+                          <span
+                            className={`inline-flex items-center gap-1 text-xs font-medium px-2.5 py-0.5 rounded-full ${
+                              isActivo
+                                ? 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border border-emerald-500/20'
+                                : 'bg-rose-500/10 text-rose-700 dark:text-rose-400 border border-rose-500/20'
+                            }`}
+                          >
+                            {isActivo ? <UserCheck className="w-3 h-3" /> : <UserX className="w-3 h-3" />}
+                            {isActivo ? 'Habilitado' : 'Inhabilitado'}
+                          </span>
+
+                          <button
+                            type="button"
+                            onClick={() => handleToggleClientStatus(client)}
+                            className="p-1 text-ink-mute hover:text-ink transition-colors rounded hover:bg-canvas-soft"
+                            title={isActivo ? 'Inhabilitar acceso al cliente' : 'Habilitar acceso al cliente'}
+                          >
+                            <Power
+                              className={`w-3.5 h-3.5 ${
+                                isActivo ? 'text-ink-mute hover:text-rose-600' : 'text-emerald-600'
+                              }`}
+                            />
+                          </button>
+                        </div>
+                      </TD>
+                      <TD className="text-right">
+                        <div className="flex items-center justify-end gap-1.5">
+                          <Button
+                            variant="secondary"
+                            size="sm"
+                            onClick={() => {
+                              setPasswordTargetClient(client)
+                              setIsPasswordModalOpen(true)
+                            }}
+                            className="h-8 text-xs flex items-center gap-1.5 text-amber-700 dark:text-amber-400 border-amber-500/20 hover:bg-amber-500/10"
+                            title="Blanquear o cambiar contraseña"
+                          >
+                            <KeyRound className="w-3.5 h-3.5" />
+                            Reset Pass
+                          </Button>
+
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setEditingClient(client)
+                              setIsClientModalOpen(true)
+                            }}
+                            className="p-1.5 rounded-md text-ink-mute hover:text-primary hover:bg-canvas-soft transition-colors"
+                            title="Editar usuario y empresa"
+                          >
+                            <Edit2 className="w-4 h-4" />
+                          </button>
+                        </div>
+                      </TD>
+                    </TR>
+                  )
+                })}
               </TBody>
             </Table>
           </div>
@@ -488,6 +670,17 @@ export function UsersPage() {
           onClose={() => setIsClientModalOpen(false)}
           onSuccess={reloadUsers}
           client={editingClient}
+        />
+      )}
+
+      {/* Modal específico para Reset de Contraseña de Cliente */}
+      {isPasswordModalOpen && (
+        <ClientPasswordModal
+          key={passwordTargetClient ? `pwd-${passwordTargetClient.id_cliente}` : 'pwd-new'}
+          isOpen={isPasswordModalOpen}
+          onClose={() => setIsPasswordModalOpen(false)}
+          onSuccess={reloadUsers}
+          client={passwordTargetClient}
         />
       )}
     </>

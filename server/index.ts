@@ -34,6 +34,15 @@ function ensureResetTokensTable(db: any) {
   `)
 }
 
+/** Garantiza que la columna activo exista en la tabla cliente (idempotente). */
+function ensureClientActiveColumn(db: any) {
+  try {
+    db.exec(`ALTER TABLE cliente ADD COLUMN activo INTEGER NOT NULL DEFAULT 1`)
+  } catch {
+    // Si ya existe la columna, no hace nada
+  }
+}
+
 function parseCookies(cookieHeader?: string): Record<string, string> {
   const list: Record<string, string> = {}
   if (!cookieHeader) return list
@@ -464,6 +473,10 @@ const server = createServer(async (req, res) => {
       // Buscar en cliente (validando password con hash seguro)
       const cliente = db.prepare('SELECT * FROM cliente WHERE LOWER(email) = ?').get(input) as any
       if (cliente && verifyPassword(pass, cliente.password_hash)) {
+        if (cliente.activo === 0 || cliente.activo === false) {
+          return sendJson(res, 403, { error: 'Su cuenta de usuario cliente se encuentra inhabilitada. Por favor, comuníquese con el equipo de SMT Catering.' })
+        }
+
         const user = {
           id: cliente.id_cliente,
           username: cliente.email.split('@')[0],
@@ -833,7 +846,7 @@ const server = createServer(async (req, res) => {
       `).all()
 
       const clients = db.prepare(`
-        SELECT id_cliente, razon_social, cuit, nombre_completo, cargo_responsable, email, telefono, direccion_legal, fecha_aniversario, fecha_creacion
+        SELECT id_cliente, razon_social, cuit, nombre_completo, cargo_responsable, email, telefono, direccion_legal, fecha_aniversario, activo, fecha_creacion
         FROM cliente
         ORDER BY id_cliente ASC
       `).all()
@@ -1007,6 +1020,7 @@ const server = createServer(async (req, res) => {
       const email = body.email !== undefined ? String(body.email).trim().toLowerCase() : existing.email
       const telefono = body.telefono !== undefined ? String(body.telefono).trim() : existing.telefono
       const direccionLegal = body.direccionLegal !== undefined ? String(body.direccionLegal).trim() : existing.direccion_legal
+      const activo = body.activo !== undefined ? (Number(body.activo) === 0 ? 0 : 1) : (existing.activo !== undefined ? existing.activo : 1)
 
       if (email !== existing.email.toLowerCase()) {
         const staffDup = db.prepare('SELECT id_usuario FROM usuario_staff WHERE LOWER(email) = ?').get(email)
@@ -1023,12 +1037,12 @@ const server = createServer(async (req, res) => {
 
       db.prepare(`
         UPDATE cliente
-        SET razon_social = ?, cuit = ?, nombre_completo = ?, cargo_responsable = ?, email = ?, telefono = ?, direccion_legal = ?, password_hash = ?
+        SET razon_social = ?, cuit = ?, nombre_completo = ?, cargo_responsable = ?, email = ?, telefono = ?, direccion_legal = ?, password_hash = ?, activo = ?
         WHERE id_cliente = ?
-      `).run(razonSocial, cuit, nombreCompleto, cargoResponsable, email, telefono, direccionLegal, newPasswordHash, targetId)
+      `).run(razonSocial, cuit, nombreCompleto, cargoResponsable, email, telefono, direccionLegal, newPasswordHash, activo, targetId)
 
       const updated = db.prepare(`
-        SELECT id_cliente, razon_social, cuit, nombre_completo, cargo_responsable, email, telefono, direccion_legal, fecha_aniversario, fecha_creacion
+        SELECT id_cliente, razon_social, cuit, nombre_completo, cargo_responsable, email, telefono, direccion_legal, fecha_aniversario, activo, fecha_creacion
         FROM cliente
         WHERE id_cliente = ?
       `).get(targetId)
@@ -1050,9 +1064,10 @@ const server = createServer(async (req, res) => {
 })
 
 server.listen(PORT, '0.0.0.0', () => {
-  // Crear tabla de tokens de reset si no existe (idempotente, sin depender de db:reset)
+  // Crear tabla de tokens de reset si no existe y asegurar columna activo en cliente
   const db = getDatabase()
   ensureResetTokensTable(db)
+  ensureClientActiveColumn(db)
 
   console.log(`🚀 SMT Catering Server corriendo en http://localhost:${PORT}`)
   console.log(`📡 Endpoints disponibles en SQLite (MER_v3):`)

@@ -15,6 +15,7 @@ CREATE TABLE IF NOT EXISTS cliente (
   direccion_legal VARCHAR(100),
   fecha_aniversario DATE,
   password_hash VARCHAR(255) NOT NULL,
+  activo INTEGER NOT NULL DEFAULT 1,
   fecha_creacion TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
 );
 

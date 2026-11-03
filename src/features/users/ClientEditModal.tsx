@@ -15,6 +15,7 @@ export interface ClientItem {
   telefono?: string
   direccion_legal?: string
   fecha_aniversario?: string
+  activo?: number
   fecha_creacion?: string
 }
 
@@ -38,6 +39,7 @@ export function ClientEditModal({
   const [email, setEmail] = useState(client?.email || '')
   const [telefono, setTelefono] = useState(client?.telefono || '')
   const [direccionLegal, setDireccionLegal] = useState(client?.direccion_legal || '')
+  const [activo, setActivo] = useState(client?.activo ?? 1)
   const [password, setPassword] = useState('')
 
   const [loading, setLoading] = useState(false)
@@ -59,6 +61,7 @@ export function ClientEditModal({
         email,
         telefono,
         direccionLegal,
+        activo,
         ...(password.trim() ? { password: password.trim() } : {}),
       })
 
@@ -198,19 +201,35 @@ export function ClientEditModal({
             />
           </div>
 
-          <div>
-            <Label htmlFor="clientPassword" className="text-xs text-ink-secondary mb-1 flex items-center gap-1">
-              <KeyRound className="w-3.5 h-3.5 text-ink-mute" />
-              Blanquear / Actualizar Contraseña (opcional)
-            </Label>
-            <Input
-              id="clientPassword"
-              type="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              placeholder="Dejar en blanco para conservar la actual"
-              className="w-full text-sm"
-            />
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <Label htmlFor="clientEstado" className="text-xs text-ink-secondary mb-1 block">
+                Estado de la Cuenta
+              </Label>
+              <select
+                id="clientEstado"
+                value={activo}
+                onChange={(e) => setActivo(Number(e.target.value))}
+                className="w-full text-sm rounded-md border border-hairline bg-canvas px-3 py-2 text-ink shadow-sm focus:outline-none focus:ring-1 focus:ring-primary"
+              >
+                <option value={1}>Habilitado (Acceso activo)</option>
+                <option value={0}>Inhabilitado (Acceso bloqueado)</option>
+              </select>
+            </div>
+            <div>
+              <Label htmlFor="clientPassword" className="text-xs text-ink-secondary mb-1 flex items-center gap-1">
+                <KeyRound className="w-3.5 h-3.5 text-ink-mute" />
+                Blanquear Clave (opcional)
+              </Label>
+              <Input
+                id="clientPassword"
+                type="password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                placeholder="Dejar en blanco para conservar"
+                className="w-full text-sm"
+              />
+            </div>
           </div>
 
           <div className="flex items-center justify-end gap-2 pt-4 border-t border-hairline">
