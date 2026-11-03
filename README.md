@@ -51,7 +51,6 @@ Abrir en el navegador: **http://localhost:5173**
 | **Cocina** | `cocina@smtcatering.com` | `admin123` | Calendario de eventos y comandas de producción (sin precios) |
 | **Cliente B2B** | `eventos@aluar.com.ar` | `admin123` | Cotizador interactivo, solicitudes y perfil de empresa |
 
-> 💡 **Nota sobre el usuario Admin:** En la pantalla de *Gestión de Usuarios* (`/usuarios`), el usuario administrador figura registrado con el nombre **Administrador** y el correo **admin@smtcatering.com**. Por comodidad de desarrollo, podés iniciar sesión escribiendo `admin` o `admin@smtcatering.com` indistintamente. Los demás roles requieren su email completo.
 
 ---
 
