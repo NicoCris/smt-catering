@@ -219,9 +219,27 @@ export async function app(req: IncomingMessage, res: ServerResponse) {
   const url = new URL(req.url || '/', `http://${req.headers.host || 'localhost'}`)
   const dbClient = getDatabase()
 
-  // 1. Health check
+  // 1. Health check y diagnóstico de Base de Datos
   if (url.pathname === '/api/health' && req.method === 'GET') {
-    return sendJson(res, 200, { status: 'ok', timestamp: new Date().toISOString() })
+    try {
+      const staffRes = await dbClient.query('SELECT count(*) as total_staff FROM usuario_staff')
+      return sendJson(res, 200, {
+        status: 'ok',
+        database: 'connected',
+        totalStaff: Number(staffRes[0]?.total_staff || 0),
+        hasDatabaseUrl: Boolean(process.env.DATABASE_URL),
+        timestamp: new Date().toISOString(),
+      })
+    } catch (err: any) {
+      console.error('⚠️ [HEALTH CHECK ERROR] Error al conectar con Neon:', err.message)
+      return sendJson(res, 500, {
+        status: 'error',
+        database: 'disconnected_or_empty',
+        error: err.message,
+        hasDatabaseUrl: Boolean(process.env.DATABASE_URL),
+        timestamp: new Date().toISOString(),
+      })
+    }
   }
 
   // 2. Tarifas
@@ -539,6 +557,7 @@ export async function app(req: IncomingMessage, res: ServerResponse) {
 
       return sendJson(res, 401, { error: 'Credenciales inválidas' })
     } catch (err: any) {
+      console.error('❌ [AUTH LOGIN ERROR]:', err)
       return sendJson(res, 500, { error: err.message })
     }
   }
