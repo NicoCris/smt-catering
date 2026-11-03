@@ -204,7 +204,7 @@ async function fetchAllEvents(dbClient: typeof db) {
   return events
 }
 
-export const server = createServer(async (req, res) => {
+export async function app(req: IncomingMessage, res: ServerResponse) {
   if (req.method === 'OPTIONS') {
     res.writeHead(204, {
       'Access-Control-Allow-Origin': '*',
@@ -1174,7 +1174,9 @@ export const server = createServer(async (req, res) => {
   }
 
   sendJson(res, 404, { error: 'Ruta no encontrada', path: url.pathname })
-})
+}
+
+export const server = createServer(app)
 
 // En entorno de ejecución local estándar, levantar servidor HTTP en puerto asignado
 if (process.env.VERCEL !== '1') {
