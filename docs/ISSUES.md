@@ -21,16 +21,18 @@ Documento de seguimiento de tareas pendientes organizadas por vistas, módulos d
   - > **Principio de Seguridad vs UX:**
   - > - **Seguridad Real (Backend):** La seguridad reside exclusivamente en el backend mediante `authGuard` y `roleGuard`. El servidor valida la cookie JWT en cada petición y rechaza accesos no autorizados con `403 Forbidden`.
   - > - **Renderizado UI (Frontend):** Al cargar la aplicación, el frontend consulta `GET /api/auth/me` y guarda la sesión en `useAuthStore` únicamente para propósitos visuales (ocultar botones que el rol no puede ejecutar, adaptar la navegación en `AppShell` y mostrar saludo personalizado).
-- [ ] **Sistema de Roles y Permisos (RBAC)**
+- [x] **Sistema de Roles y Permisos (RBAC)**
   - [x] Definir los 4 roles del sistema en contratos compartidos (`shared/types/roles.ts`): `superadmin`, `admin`, `cocina` y `cliente`.
   - [x] Crear middleware RBAC en backend (`server/middleware/roleGuard.ts`) para control de acceso por ruta y acción.
-  - [ ] Integrar guards en frontend (`src/App.tsx`) para restringir rutas según rol autenticado.
+  - [x] Integrar guards en frontend (`src/App.tsx`) para restringir rutas según rol autenticado (`AdminRoute`).
 - [x] **Proxy de Desarrollo & Cliente HTTP Unificado**
   - [x] Configurar proxy de Vite en `vite.config.ts` (`/api` -> `http://localhost:3001`) para evitar errores de CORS y habilitar transporte transparente de cookies en desarrollo y producción.
   - [x] Crear cliente HTTP centralizado (`src/lib/api.ts`) para unificar llamadas del frontend a endpoints relativos (`/api/...`).
-- [ ] **Panel de Administración para Superadmin (AdminJS)**
-  - [x] Crear módulo base de configuración (`server/modules/adminjs/adminjs.config.ts`).
-  - [ ] Instalar `@adminjs/express` y conectar recursos para alta, baja, modificación y asignación de roles de usuarios.
+- [x] **Gestión Centralizada de Usuarios en la App (`/usuarios`)**
+  - [x] Reemplazar panel genérico externo por sección nativa integrada en la app (`src/features/users/UsersPage.tsx`).
+  - [x] Endpoints protegidos en backend (`GET /api/users`, `POST /api/users/staff`, `PATCH /api/users/staff/:id`, `DELETE /api/users/staff/:id`, `PATCH /api/users/clients/:id`).
+  - [x] Pestañas de directorio: Equipo Interno (Staff) y Clientes Corporativos B2B.
+  - [x] Modales de alta de colaborador con hashing de contraseñas, edición de roles, toggle de estado activo/inactivo y blanqueo de clave.
 - [x] **Unificación de Contratos y Modelos en Español (según MER_v3)**
   - [x] Migrar interfaces, DTOs y tipos compartidos (`shared/types/modelos.ts`) a español (`Cliente`, `UsuarioStaff`, `Reserva`, `Estacion`, `DetalleReservaEstacion`, `RestriccionAlimentaria`, `Pago`, `ComandaProduccion`, `Tarifa`).
   - [x] Adaptar modelos del frontend (`src/types/domain.ts`) y alias de compatibilidad para consumir las entidades con los nombres del MER_v3.
@@ -56,8 +58,8 @@ Documento de seguimiento de tareas pendientes organizadas por vistas, módulos d
   - [ ] Aplicar la nueva paleta de colores en tokens de `@theme` (Tailwind) y variables globales CSS.
 - [ ] **Controles de Formulario**
   - [ ] Ocultar flechas por defecto (spinners / steppers) en todos los inputs de tipo numérico (`input[type=number]`).
-- [ ] **Navegación Dinámica por Rol**
-  - [ ] Configurar `AppShell` y la barra de navegación para renderizar únicamente las secciones habilitadas según el rol del usuario conectado.
+- [x] **Navegación Dinámica por Rol**
+  - [x] Configurar `AppShell` y la barra de navegación para renderizar únicamente las secciones habilitadas según el rol del usuario conectado.
 
 ---
 
@@ -70,8 +72,8 @@ Documento de seguimiento de tareas pendientes organizadas por vistas, módulos d
   - [x] Definir esquema de validación Zod (`shared/schemas/auth.schema.ts`) y endpoint backend inicial (`server/modules/auth/`).
   - [x] Agregar vista y formulario de registro en frontend.
   - [x] Asignar automáticamente el rol `cliente` a nuevos registros.
-- [x] **Redirección de Superadmin**
-  - [x] Al detectar inicio de sesión exitoso con rol `superadmin`, redirigir automáticamente al panel de AdminJS.
+- [x] **Acceso Total de Superadmin**
+  - [x] Permitir al `superadmin` acceder a toda la plataforma con permisos integrales, gestión de usuarios en `/usuarios` y navegación normal.
 
 ---
 

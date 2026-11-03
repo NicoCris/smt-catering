@@ -20,6 +20,12 @@ export function AppShell() {
   const username = useAuthStore((s) => s.username)
   const userRole = useAuthStore((s) => s.user?.role)
 
+  /** Filtra los accesos de la barra lateral según los permisos del rol activo (RBAC) */
+  const visibleNavItems = React.useMemo(() => {
+    if (!userRole) return navItems
+    return navItems.filter((item) => !item.roles || item.roles.includes(userRole))
+  }, [userRole])
+
   /** Cierra sesión y redirige a /login */
   const handleLogout = () => {
     logout()
@@ -40,7 +46,7 @@ export function AppShell() {
           </span>
         </div>
         <nav className="flex flex-1 flex-col gap-1 px-2" aria-label="Navegación principal">
-          {navItems.map(({ to, label, icon: Icon, end }) => (
+          {visibleNavItems.map(({ to, label, icon: Icon, end }) => (
             <NavLink key={to} to={to} end={end} className={linkClass} title={label}>
               <Icon className="h-5 w-5 shrink-0" />
               <span className="hidden lg:inline">{label}</span>
@@ -130,7 +136,7 @@ export function AppShell() {
         className="no-print fixed inset-x-0 bottom-0 z-20 flex border-t border-hairline bg-canvas md:hidden"
         aria-label="Navegación inferior"
       >
-        {navItems.map(({ to, label, icon: Icon, end }) => (
+        {visibleNavItems.map(({ to, label, icon: Icon, end }) => (
           <NavLink
             key={to}
             to={to}

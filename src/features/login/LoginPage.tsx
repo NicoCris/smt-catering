@@ -45,12 +45,6 @@ export function LoginPage() {
     const ok = await login(usernameInput.trim(), pass)
     if (!ok) {
       setError(true)
-    } else {
-      // Si el rol es superadmin, redirige directamente al panel de AdminJS
-      const loggedUser = useAuthStore.getState().user
-      if (loggedUser?.role === 'superadmin') {
-        window.location.href = '/admin'
-      }
     }
   }
 
